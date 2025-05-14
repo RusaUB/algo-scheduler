@@ -10,6 +10,7 @@ from algorithms.dfs import DeadlineFirstScheduler
 from algorithms.utils import *
 
 from ui.fonts import Font
+from ui.cards import Card
 
 class TextInputBox:
     def __init__(self, x, y, w, h, text=''):
@@ -77,13 +78,22 @@ class SchedulerApp:
         self.replay_duration = 5000  # 5 seconds
 
         # Define algorithm buttons.
-        self.algo_buttons = [
-            {"label": "FCFS", "algo": "FCFS", "rect": pygame.Rect(50, 50, 120, 40)},
-            {"label": "SJN", "algo": "SJN", "rect": pygame.Rect(200, 50, 120, 40)},
-            {"label": "Round Robin", "algo": "RR", "rect": pygame.Rect(350, 50, 120, 40)},
-            {"label": "Rate Monotonic", "algo": "RM", "rect": pygame.Rect(500, 50, 120, 40)},
-            {"label": "Deadline First", "algo": "DF", "rect": pygame.Rect(650, 50, 120, 40)},
-        ]
+        self.algo_buttons = {
+            Card(50,  50, 120, 40, "FCFS",          self.font),
+            Card(200, 50, 120, 40, "SJN",           self.font),
+            Card(350, 50, 120, 40, "Round Robin",   self.font),
+            Card(500, 50, 120, 40, "Rate Monotonic",self.font),
+            Card(650, 50, 120, 40, "Deadline First",self.font),
+        }
+
+        self.algo_map = {
+            "FCFS": "FCFS",
+            "SJN":  "SJN",
+            "Round Robin": "RR",
+            "Rate Monotonic": "RM",
+            "Deadline First": "DF",
+        }
+
         # Mode toggle buttons.
         self.mode_buttons = [
             {"label": "Random", "mode": "random", "rect": pygame.Rect(50, 100, 120, 30)},
@@ -138,9 +148,11 @@ class SchedulerApp:
     def handle_menu_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
-            for btn in self.algo_buttons:
-                if btn["rect"].collidepoint(pos):
-                    self.selected_algo = btn["algo"]
+            # Algorithm cards
+            for card in self.algo_buttons:
+                if card.rect.collidepoint(pos):
+                    label = card.text
+                    self.selected_algo = self.algo_map[label]
                     if self.process_mode == "random":
                         include_deadline = self.selected_algo in ("RM", "DF")
                         self.processes = generate_random_processes(5, include_deadline=include_deadline)
@@ -275,10 +287,8 @@ class SchedulerApp:
     def draw_menu(self):
         title = self.font.render("Scheduling Simulator - Menu", True, (0,0,0))
         self.screen.blit(title, (50,10))
-        for btn in self.algo_buttons:
-            pygame.draw.rect(self.screen, (100,100,250), btn["rect"])
-            text = self.font.render(btn["label"], True, (255,255,255))
-            self.screen.blit(text, btn["rect"].move(10,5))
+        for card in self.algo_buttons:
+            card.draw(self.screen)
         for btn in self.mode_buttons:
             color = (0,200,0) if self.process_mode == btn["mode"] else (200,200,200)
             pygame.draw.rect(self.screen, color, btn["rect"])
