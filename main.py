@@ -317,7 +317,7 @@ class SchedulerApp:
         self.screen.blit(title_surf, (50, 10))
 
         # 2) “Select Process Mode:” label at left + buttons at right, same row
-        controls_y = 60
+        controls_y = 70
         label_surf = self.font.load().render("Select Process Mode:", True, (0, 0, 0))
         self.screen.blit(label_surf, (50, controls_y))
 
