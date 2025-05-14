@@ -76,49 +76,38 @@ class SchedulerApp:
         self.replay_start_time = None
         self.replay_duration = 5000  # 5 seconds
 
-        # Define algorithm buttons.
-        self.algo_buttons = [
-            Card(
-                50,  50, 120, 60,
-                title="FCFS",
-                description="First-Come, First-Served",
-                title_font=self.font.load(),
-                desc_font=self.font.load(),
-                bg_color=(254, 208, 125)
-            ),
-            Card(
-                200, 50, 120, 60,
-                title="SJN",
-                description="Shortest Job Next",
-                title_font=self.font.load(),
-                desc_font=self.font.load(),
-                bg_color=(255, 165, 126)
-            ),
-            Card(
-                350, 50, 120, 60,
-                title="Round Robin",
-                description="Time-sliced rotation",
-                title_font=self.font.load(),
-                desc_font=self.font.load(),
-                bg_color=(231, 241, 154)
-            ),
-            Card(
-                500, 50, 120, 60,
-                title="Rate Monotonic",
-                description="Fixed priorities by period",
-                title_font=self.font.load(),
-                desc_font=self.font.load(),
-                bg_color=(190, 158, 253)
-            ),
-            Card(
-                650, 50, 120, 60,
-                title="Deadline First",
-                description="Earliest deadline wins",
-                title_font=self.font.load(),
-                desc_font=self.font.load(),
-                bg_color=(3, 217, 254)
-            ),
+        # Parameters
+        titles      = [
+            ("FCFS",           "First-Come, First-Served",      (254,208,125)),
+            ("SJN",            "Shortest Job Next",             (255,165,126)),
+            ("Round Robin",    "Time-sliced rotation",          (231,241,154)),
+            ("Rate Monotonic", "Fixed priorities by period",    (190,158,253)),
+            ("Deadline First", "Earliest deadline wins",        (3,217,254)),
         ]
+        card_w, card_h   = 240, 120
+        padding_x, padding_y = 30, 20
+        start_x, start_y = 50, 50
+
+        self.algo_buttons = []
+        for idx, (title, desc, color) in enumerate(titles):
+            # row 0: idx 0,1,2 → cols 0,1,2
+            # row 1: idx 3,4   → cols 0,1
+            row = idx // 3
+            col = idx % 3
+            # on row 1 we only want 2 columns, but since idx runs 3→row1,col0 and 4→row1,col1,
+            # the mod logic works out.
+            x = start_x + col * (card_w + padding_x)
+            y = start_y + row * (card_h + padding_y)
+            self.algo_buttons.append(
+                Card(
+                    x, y, card_w, card_h,
+                    title=title,
+                    description=desc,
+                    title_font=self.font.load(type="SemiBold"),
+                    desc_font=self.font.load(type="Light"),
+                    bg_color=color
+                )
+            )
 
 
         self.algo_map = {

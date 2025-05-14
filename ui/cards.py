@@ -2,7 +2,7 @@ import pygame
 
 class Card:
     """
-    A simple UI card component for Pygame with a title and optional description, centered and with rounded corners.
+    A simple UI card component for Pygame with a title and optional description, left-aligned, with rounded corners.
     """
     def __init__(
         self,
@@ -22,6 +22,7 @@ class Card:
         corner_radius: int = 8,
         padding_top: int = 10,
         padding_between: int = 5,
+        padding_left: int = 10,
     ):
         # Rectangle defining the card's position and size
         self.rect = pygame.Rect(x, y, width, height)
@@ -37,6 +38,7 @@ class Card:
         self.corner_radius = corner_radius
         self.padding_top = padding_top
         self.padding_between = padding_between
+        self.padding_left = padding_left
 
     def draw(self, screen: pygame.Surface):
         # Draw background with rounded corners
@@ -56,17 +58,17 @@ class Card:
                 border_radius=self.corner_radius
             )
 
-        # Render and position title
+        # Render and position title (left-aligned)
         title_surf = self.title_font.render(self.title, True, self.title_color)
         title_rect = title_surf.get_rect(
-            midtop=(self.rect.centerx, self.rect.top + self.padding_top)
+            topleft=(self.rect.left + self.padding_left, self.rect.top + self.padding_top)
         )
         screen.blit(title_surf, title_rect)
 
-        # Render and position description below title
+        # Render and position description below title (left-aligned)
         if self.description:
             desc_surf = self.desc_font.render(self.description, True, self.desc_color)
             desc_rect = desc_surf.get_rect(
-                midtop=(self.rect.centerx, title_rect.bottom + self.padding_between)
+                topleft=(self.rect.left + self.padding_left, title_rect.bottom + self.padding_between)
             )
             screen.blit(desc_surf, desc_rect)
