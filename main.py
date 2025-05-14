@@ -186,7 +186,7 @@ class SchedulerApp:
             # Algorithm cards
             for card in self.algo_buttons:
                 if card.rect.collidepoint(pos):
-                    label = card.text
+                    label = card.title
                     self.selected_algo = self.algo_map[label]
                     if self.process_mode == "random":
                         include_deadline = self.selected_algo in ("RM", "DF")
