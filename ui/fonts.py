@@ -19,7 +19,6 @@ class Font:
         file_path = os.path.join(self.font_dir, file_name)
 
         if os.path.exists(file_path):
-            print("Found font file:", file_path)
             return file_path, pt_size
         else:
             raise FileNotFoundError(f"Font file not found: {file_path}")

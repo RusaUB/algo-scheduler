@@ -53,13 +53,12 @@ class SchedulerApp:
 
         # font init
         pygame.font.init()
-        font = Font(path="Inter")
+        self.font = Font(path="Inter")
 
         self.width = width
         self.height = height
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("Scheduling Simulator (Pygame)")
-        self.font = font.load()
         self.clock = pygame.time.Clock()
         # States: "menu", "input", "simulation", "replay"
         self.state = "menu"
@@ -78,13 +77,49 @@ class SchedulerApp:
         self.replay_duration = 5000  # 5 seconds
 
         # Define algorithm buttons.
-        self.algo_buttons = {
-            Card(50,  50, 120, 40, "FCFS",          self.font),
-            Card(200, 50, 120, 40, "SJN",           self.font),
-            Card(350, 50, 120, 40, "Round Robin",   self.font),
-            Card(500, 50, 120, 40, "Rate Monotonic",self.font),
-            Card(650, 50, 120, 40, "Deadline First",self.font),
-        }
+        self.algo_buttons = [
+            Card(
+                50,  50, 120, 60,
+                title="FCFS",
+                description="First-Come, First-Served",
+                title_font=self.font.load(),
+                desc_font=self.font.load(),
+                bg_color=(254, 208, 125)
+            ),
+            Card(
+                200, 50, 120, 60,
+                title="SJN",
+                description="Shortest Job Next",
+                title_font=self.font.load(),
+                desc_font=self.font.load(),
+                bg_color=(255, 165, 126)
+            ),
+            Card(
+                350, 50, 120, 60,
+                title="Round Robin",
+                description="Time-sliced rotation",
+                title_font=self.font.load(),
+                desc_font=self.font.load(),
+                bg_color=(231, 241, 154)
+            ),
+            Card(
+                500, 50, 120, 60,
+                title="Rate Monotonic",
+                description="Fixed priorities by period",
+                title_font=self.font.load(),
+                desc_font=self.font.load(),
+                bg_color=(190, 158, 253)
+            ),
+            Card(
+                650, 50, 120, 60,
+                title="Deadline First",
+                description="Earliest deadline wins",
+                title_font=self.font.load(),
+                desc_font=self.font.load(),
+                bg_color=(3, 217, 254)
+            ),
+        ]
+
 
         self.algo_map = {
             "FCFS": "FCFS",
@@ -229,24 +264,24 @@ class SchedulerApp:
     def draw_comparison(self):
         self.screen.fill((240,240,240))
         # Title
-        title = self.font.render("Comparison: Processes & Avg Metrics", True, (0,0,0))
+        title = self.font.load().render("Comparison: Processes & Avg Metrics", True, (0,0,0))
         self.screen.blit(title, (50,10))
 
         # 1) Show all processes
-        proc_title = self.font.render("Processes:", True, (0,0,0))
+        proc_title = self.font.load().render("Processes:", True, (0,0,0))
         self.screen.blit(proc_title, (50,50))
         y = 80
         for p in self.processes:
             details = f"P{p.pid}: Arrival={p.arrival_time}, Burst={p.burst_time}"
             if p.deadline is not None:
                 details += f", Deadline={p.deadline}"
-            line = self.font.render(details, True, (0,0,0))
+            line = self.font.load().render(details, True, (0,0,0))
             self.screen.blit(line, (50, y))
             y += 25
 
         # Spacer
         y += 10
-        metrics_title = self.font.render("Average Waiting / Turnaround Times:", True, (0,0,0))
+        metrics_title = self.font.load().render("Average Waiting / Turnaround Times:", True, (0,0,0))
         self.screen.blit(metrics_title, (50, y))
         y +=  30
 
@@ -274,67 +309,67 @@ class SchedulerApp:
             awt  = sched.average_waiting_time()
             atat = sched.average_turnaround_time()
             text = f"{lbl}: Avg wait = {awt:.2f}, Avg turn = {atat:.2f}"
-            txt_surf = self.font.render(text, True, (0,0,0))
+            txt_surf = self.font.load().render(text, True, (0,0,0))
             self.screen.blit(txt_surf, (50, y))
             y += 25
 
         # Back button
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_text = self.font.render("Back", True, (255,255,255))
+        back_text = self.font.load().render("Back", True, (255,255,255))
         self.screen.blit(back_text, self.back_button["rect"].move(10,5))
 
 
     def draw_menu(self):
-        title = self.font.render("Scheduling Simulator - Menu", True, (0,0,0))
+        title = self.font.load().render("Scheduling Simulator - Menu", True, (0,0,0))
         self.screen.blit(title, (50,10))
         for card in self.algo_buttons:
             card.draw(self.screen)
         for btn in self.mode_buttons:
             color = (0,200,0) if self.process_mode == btn["mode"] else (200,200,200)
             pygame.draw.rect(self.screen, color, btn["rect"])
-            text = self.font.render(btn["label"], True, (0,0,0))
+            text = self.font.load().render(btn["label"], True, (0,0,0))
             self.screen.blit(text, btn["rect"].move(10,3))
-        mode_text = self.font.render("Select Process Mode:", True, (0,0,0))
+        mode_text = self.font.load().render("Select Process Mode:", True, (0,0,0))
         self.screen.blit(mode_text, (50,80))
 
     def draw_input_screen(self):
-        title = self.font.render("Custom Process Input", True, (0,0,0))
+        title = self.font.load().render("Custom Process Input", True, (0,0,0))
         self.screen.blit(title, (50,50))
         # Draw labels and input boxes for each parameter.
-        arrival_label = self.font.render("Arrival Time:", True, (0,0,0))
+        arrival_label = self.font.load().render("Arrival Time:", True, (0,0,0))
         self.screen.blit(arrival_label, (50,120))
         self.arrival_box.draw(self.screen)
 
-        burst_label = self.font.render("Burst Time:", True, (0,0,0))
+        burst_label = self.font.load().render("Burst Time:", True, (0,0,0))
         self.screen.blit(burst_label, (200,120))
         self.burst_box.draw(self.screen)
 
         if self.selected_algo in ("RM", "DF"):
-            deadline_label = self.font.render("Deadline:", True, (0,0,0))
+            deadline_label = self.font.load().render("Deadline:", True, (0,0,0))
             self.screen.blit(deadline_label, (350,120))
             self.deadline_box.draw(self.screen)
 
         pygame.draw.rect(self.screen, (50,150,50), self.add_button["rect"])
-        add_text = self.font.render(self.add_button["label"], True, (255,255,255))
+        add_text = self.font.load().render(self.add_button["label"], True, (255,255,255))
         self.screen.blit(add_text, self.add_button["rect"].move(5,5))
         y = 220
-        list_title = self.font.render("Processes Added:", True, (0,0,0))
+        list_title = self.font.load().render("Processes Added:", True, (0,0,0))
         self.screen.blit(list_title, (50,y))
         y += 30
         for idx, proc in enumerate(self.custom_inputs):
             proc_text = f"{idx+1}: Arrival={proc[0]}, Burst={proc[1]}" + (f", Deadline={proc[2]}" if proc[2] is not None else "")
-            line = self.font.render(proc_text, True, (0,0,0))
+            line = self.font.load().render(proc_text, True, (0,0,0))
             self.screen.blit(line, (50,y))
             y += 30
         pygame.draw.rect(self.screen, (200,50,50), self.start_sim_button["rect"])
-        start_text = self.font.render(self.start_sim_button["label"], True, (255,255,255))
+        start_text = self.font.load().render(self.start_sim_button["label"], True, (255,255,255))
         self.screen.blit(start_text, self.start_sim_button["rect"].move(5,5))
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_text = self.font.render("Back", True, (255,255,255))
+        back_text = self.font.load().render("Back", True, (255,255,255))
         self.screen.blit(back_text, self.back_button["rect"].move(10,5))
     
     def draw_simulation(self):
-        title = self.font.render("Simulation Result", True, (0,0,0))
+        title = self.font.load().render("Simulation Result", True, (0,0,0))
         self.screen.blit(title, (50,10))
         if not self.scheduler or not self.scheduler.timeline:
             return
@@ -356,41 +391,41 @@ class SchedulerApp:
             pygame.draw.rect(self.screen, (100,180,100), rect)
             # Draw vertical divider.
             pygame.draw.line(self.screen, (0,0,0), (x+width, chart_top), (x+width, chart_top+chart_height), 2)
-            label = self.font.render(f"P{pid}", True, (255,255,255))
+            label = self.font.load().render(f"P{pid}", True, (255,255,255))
             self.screen.blit(label, rect.move(5,5))
         num_markers = 6
         for i in range(num_markers+1):
             t = start_time + i * (total_time/num_markers)
             x = chart_left + ((t - start_time) / total_time) * chart_width
-            time_label = self.font.render(f"{t:.1f}", True, (0,0,0))
+            time_label = self.font.load().render(f"{t:.1f}", True, (0,0,0))
             self.screen.blit(time_label, (x-10, chart_top+chart_height+5))
         pygame.draw.rect(self.screen, (50,50,200), self.replay_button["rect"])
-        rep_text = self.font.render(self.replay_button["label"], True, (255,255,255))
+        rep_text = self.font.load().render(self.replay_button["label"], True, (255,255,255))
         self.screen.blit(rep_text, self.replay_button["rect"].move(5,5))
         pygame.draw.rect(self.screen, (200,100,50), self.compare_button["rect"])
-        cmp_text = self.font.render(self.compare_button["label"], True, (255,255,255))
+        cmp_text = self.font.load().render(self.compare_button["label"], True, (255,255,255))
         self.screen.blit(cmp_text, self.compare_button["rect"].move(5,5))
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_text = self.font.render("Back", True, (255,255,255))
+        back_text = self.font.load().render("Back", True, (255,255,255))
         self.screen.blit(back_text, self.back_button["rect"].move(10,5))
         # If in random mode, list the randomly produced processes with all parameters.
         if self.process_mode == "random":
-            proc_title = self.font.render("Random Processes:", True, (0,0,0))
+            proc_title = self.font.load().render("Random Processes:", True, (0,0,0))
             self.screen.blit(proc_title, (50, chart_top+chart_height+50))
             y = chart_top+chart_height+80
             for p in self.processes:
                 details = f"P{p.pid}: Arrival={p.arrival_time}, Burst={p.burst_time}"
                 if p.deadline is not None:
                     details += f", Deadline={p.deadline}"
-                proc_line = self.font.render(details, True, (0,0,0))
+                proc_line = self.font.load().render(details, True, (0,0,0))
                 self.screen.blit(proc_line, (50, y))
                 y += 30
 
         # ==== INSERT AVERAGE METRICS HERE ====
         avg_wt = self.scheduler.average_waiting_time()
         avg_tat = self.scheduler.average_turnaround_time()
-        wt_text = self.font.render(f"Avg waiting time: {avg_wt:.2f}", True, (0,0,0))
-        tat_text = self.font.render(f"Avg turnaround time: {avg_tat:.2f}", True, (0,0,0))
+        wt_text = self.font.load().render(f"Avg waiting time: {avg_wt:.2f}", True, (0,0,0))
+        tat_text = self.font.load().render(f"Avg turnaround time: {avg_tat:.2f}", True, (0,0,0))
         # position them below the process list
         self.screen.blit(wt_text, (chart_left, chart_top + chart_height + 250))
         self.screen.blit(tat_text, (chart_left, chart_top + chart_height + 280))
@@ -402,7 +437,7 @@ class SchedulerApp:
         # 1) Draw the same background & static UI that draw_simulation does:
         # -----------------------------------------------------------------
         # Title
-        title = self.font.render("Simulation Result (Replay)", True, (0,0,0))
+        title = self.font.load().render("Simulation Result (Replay)", True, (0,0,0))
         self.screen.blit(title, (50,10))
 
         # Compute chart geometry
@@ -424,33 +459,33 @@ class SchedulerApp:
         for i in range(num_markers+1):
             t = start_time + i * (total_time/num_markers)
             x = chart_left + ((t - start_time) / total_time) * chart_width
-            time_label = self.font.render(f"{t:.1f}", True, (0,0,0))
+            time_label = self.font.load().render(f"{t:.1f}", True, (0,0,0))
             self.screen.blit(time_label, (x-10, chart_top+chart_height+5))
 
         # Draw the process list (for random mode)
         if self.process_mode == "random":
-            proc_title = self.font.render("Random Processes:", True, (0,0,0))
+            proc_title = self.font.load().render("Random Processes:", True, (0,0,0))
             self.screen.blit(proc_title, (50, chart_top+chart_height+50))
             y = chart_top+chart_height+80
             for p in self.processes:
                 details = f"P{p.pid}: Arrival={p.arrival_time}, Burst={p.burst_time}"
                 if p.deadline is not None:
                     details += f", Deadline={p.deadline}"
-                proc_line = self.font.render(details, True, (0,0,0))
+                proc_line = self.font.load().render(details, True, (0,0,0))
                 self.screen.blit(proc_line, (50, y))
                 y += 30
 
         # Draw your static buttons
         pygame.draw.rect(self.screen, (50,50,200), self.replay_button["rect"])
-        rep_text = self.font.render(self.replay_button["label"], True, (255,255,255))
+        rep_text = self.font.load().render(self.replay_button["label"], True, (255,255,255))
         self.screen.blit(rep_text, self.replay_button["rect"].move(5,5))
 
         pygame.draw.rect(self.screen, (200,100,50), self.compare_button["rect"])
-        cmp_text = self.font.render(self.compare_button["label"], True, (255,255,255))
+        cmp_text = self.font.load().render(self.compare_button["label"], True, (255,255,255))
         self.screen.blit(cmp_text, self.compare_button["rect"].move(5,5))
 
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_text = self.font.render("Back", True, (255,255,255))
+        back_text = self.font.load().render("Back", True, (255,255,255))
         self.screen.blit(back_text, self.back_button["rect"].move(10,5))
 
         # 2) Now draw the animated bars *on top*:
@@ -482,7 +517,7 @@ class SchedulerApp:
                                      (x0+full_w, chart_top+chart_height), 2)
 
                 # label
-                label = self.font.render(f"P{pid}", True, (255,255,255))
+                label = self.font.load().render(f"P{pid}", True, (255,255,255))
                 self.screen.blit(label, rect.move(5,5))
     def initialize_scheduler(self):
         if self.selected_algo == "FCFS":
