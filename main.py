@@ -9,6 +9,7 @@ from algorithms.rms import RateMonotonicScheduler
 from algorithms.dfs import DeadlineFirstScheduler
 from algorithms.utils import *
 
+from ui.fonts import Font
 
 class TextInputBox:
     def __init__(self, x, y, w, h, text=''):
@@ -48,11 +49,16 @@ class TextInputBox:
 class SchedulerApp:
     def __init__(self, width=900, height=700):
         pygame.init()
+
+        # font init
+        pygame.font.init()
+        font = Font(path="Inter")
+
         self.width = width
         self.height = height
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("Scheduling Simulator (Pygame)")
-        self.font = pygame.font.Font(None, 28)
+        self.font = font.load()
         self.clock = pygame.time.Clock()
         # States: "menu", "input", "simulation", "replay"
         self.state = "menu"
