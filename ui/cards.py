@@ -1,8 +1,12 @@
 import pygame
 
+# Vertical offset (in pixels) to push all cards below top controls
+CARD_Y_OFFSET = 80
+
 class Card:
     """
-    A simple UI card component for Pygame with a title and optional description, left-aligned, with rounded corners.
+    A simple UI card component for Pygame with a title and optional description,
+    left-aligned, with rounded corners, and globally offset downwards.
     """
     def __init__(
         self,
@@ -24,8 +28,8 @@ class Card:
         padding_between: int = 5,
         padding_left: int = 10,
     ):
-        # Rectangle defining the card's position and size
-        self.rect = pygame.Rect(x, y, width, height)
+        # Base rectangle (before offset) defining the card's position and size
+        self.base_rect = pygame.Rect(x, y, width, height)
         self.title = title
         self.description = description
         self.title_font = title_font
@@ -40,12 +44,22 @@ class Card:
         self.padding_between = padding_between
         self.padding_left = padding_left
 
+    @property
+    def rect(self) -> pygame.Rect:
+        """
+        The rendered rectangle of this card, moved down by the global offset.
+        """
+        return self.base_rect.move(0, CARD_Y_OFFSET)
+
     def draw(self, screen: pygame.Surface):
+        # Use the offset rect for drawing and collision
+        rect = self.rect
+
         # Draw background with rounded corners
         pygame.draw.rect(
             screen,
             self.bg_color,
-            self.rect,
+            rect,
             border_radius=self.corner_radius
         )
         # Draw border with rounded corners
@@ -53,7 +67,7 @@ class Card:
             pygame.draw.rect(
                 screen,
                 self.border_color,
-                self.rect,
+                rect,
                 self.border_width,
                 border_radius=self.corner_radius
             )
@@ -61,7 +75,7 @@ class Card:
         # Render and position title (left-aligned)
         title_surf = self.title_font.render(self.title, True, self.title_color)
         title_rect = title_surf.get_rect(
-            topleft=(self.rect.left + self.padding_left, self.rect.top + self.padding_top)
+            topleft=(rect.left + self.padding_left, rect.top + self.padding_top)
         )
         screen.blit(title_surf, title_rect)
 
@@ -69,6 +83,6 @@ class Card:
         if self.description:
             desc_surf = self.desc_font.render(self.description, True, self.desc_color)
             desc_rect = desc_surf.get_rect(
-                topleft=(self.rect.left + self.padding_left, title_rect.bottom + self.padding_between)
+                topleft=(rect.left + self.padding_left, title_rect.bottom + self.padding_between)
             )
             screen.blit(desc_surf, desc_rect)

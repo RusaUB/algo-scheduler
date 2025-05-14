@@ -184,10 +184,13 @@ class SchedulerApp:
                         self.scheduler.schedule()
                         self.state = "simulation"
                     else:
-                        self.selected_algo = btn["algo"]
+                        # No need to reset selected_algo again—just switch to custom input mode
                         self.custom_inputs = []
                         self.processes = []
                         self.state = "input"
+                    return  # good practice to bail out once handled
+
+            # Mode buttons (same as before)
             for btn in self.mode_buttons:
                 if btn["rect"].collidepoint(pos):
                     self.process_mode = btn["mode"]
@@ -310,43 +313,38 @@ class SchedulerApp:
 
     def draw_menu(self):
         # 1) Main title at top‐left
-        title_surf = self.font.load().render("Scheduling Simulator - Menu", True, (0, 0, 0))
+        title_surf = self.font.load(size="md", type="Black").render("Scheduling Simulator - Menu", True, (0, 0, 0))
         self.screen.blit(title_surf, (50, 10))
 
-        # 2) Draw algorithm cards
+        # 2) “Select Process Mode:” label at left + buttons at right, same row
+        controls_y = 60
+        label_surf = self.font.load().render("Select Process Mode:", True, (0, 0, 0))
+        self.screen.blit(label_surf, (50, controls_y))
+
+        # compute right‐aligned buttons in a flex row
+        btn_w, btn_h = self.mode_buttons[0]["rect"].size
+        spacing      = 10
+        margin       = 20
+        total_btns_w = len(self.mode_buttons) * btn_w + (len(self.mode_buttons) - 1) * spacing
+        x            = self.width - margin - total_btns_w
+
+        for btn in self.mode_buttons:
+            # choose colors based on active state
+            if btn["mode"] == self.process_mode:
+                bg, fg = (0,0,0), (255,255,255)
+            else:
+                bg, fg = (200,200,200), (0,0,0)
+            btn["rect"].topleft = (x, controls_y)
+            pygame.draw.rect(self.screen, bg, btn["rect"])
+            txt_surf = self.font.load().render(btn["label"], True, fg)
+            txt_rect = txt_surf.get_rect(center=btn["rect"].center)
+            self.screen.blit(txt_surf, txt_rect)
+            x += btn_w + spacing
+
+        # 3) Now draw the algorithm cards *below* the controls (no overlay)
         for card in self.algo_buttons:
             card.draw(self.screen)
 
-        # 3) “Select Process Mode” + buttons in a horizontal row, bottom‐right
-        label_surf = self.font.load().render("Select Process Mode:", True, (0, 0, 0))
-        label_w, label_h = label_surf.get_size()
-
-        # assume all mode buttons are same size
-        btn_w, btn_h = self.mode_buttons[0]["rect"].size
-        spacing     = 10
-        margin      = 20
-
-        total_btns_w = len(self.mode_buttons) * btn_w + (len(self.mode_buttons) - 1) * spacing
-        total_w      = label_w + spacing + total_btns_w
-
-        start_x = self.width - margin - total_w
-        y       = self.height - margin - btn_h
-
-        # draw the label
-        self.screen.blit(label_surf, (start_x, y + (btn_h - label_h) // 2))
-
-        # draw each button to the right of the label
-        x = start_x + label_w + spacing
-        for btn in self.mode_buttons:
-            btn["rect"].topleft = (x, y)
-            color = (0, 200, 0) if self.process_mode == btn["mode"] else (200, 200, 200)
-            pygame.draw.rect(self.screen, color, btn["rect"])
-            lbl_surf = self.font.load().render(btn["label"], True, (0, 0, 0))
-            # center text inside the button
-            lbl_x = x + (btn_w - lbl_surf.get_width()) // 2
-            lbl_y = y + (btn_h - lbl_surf.get_height()) // 2
-            self.screen.blit(lbl_surf, (lbl_x, lbl_y))
-            x += btn_w + spacing
 
     def draw_input_screen(self):
         title = self.font.load().render("Custom Process Input", True, (0,0,0))
