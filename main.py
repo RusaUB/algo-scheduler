@@ -84,7 +84,7 @@ class SchedulerApp:
             ("Rate Monotonic", "Fixed priorities by period",    (190,158,253)),
             ("Deadline First", "Earliest deadline wins",        (3,217,254)),
         ]
-        card_w, card_h   = 240, 120
+        self.card_w, self.card_h   = 240, 260
         padding_x, padding_y = 30, 20
         start_x, start_y = 50, 50
 
@@ -96,11 +96,11 @@ class SchedulerApp:
             col = idx % 3
             # on row 1 we only want 2 columns, but since idx runs 3→row1,col0 and 4→row1,col1,
             # the mod logic works out.
-            x = start_x + col * (card_w + padding_x)
-            y = start_y + row * (card_h + padding_y)
+            x = start_x + col * (self.card_w + padding_x)
+            y = start_y + row * (self.card_h + padding_y)
             self.algo_buttons.append(
                 Card(
-                    x, y, card_w, card_h,
+                    x, y, self.card_w, self.card_h,
                     title=title,
                     description=desc,
                     title_font=self.font.load(type="SemiBold"),
@@ -120,8 +120,8 @@ class SchedulerApp:
 
         # Mode toggle buttons.
         self.mode_buttons = [
-            {"label": "Random", "mode": "random", "rect": pygame.Rect(50, 100, 120, 30)},
-            {"label": "Custom", "mode": "custom", "rect": pygame.Rect(200, 100, 120, 30)},
+            {"label": "Random", "mode": "random", "rect": pygame.Rect(50, 20, 120, 30)},
+            {"label": "Custom", "mode": "custom", "rect": pygame.Rect(200, 20, 120, 30)},
         ]
         # Buttons in custom input state.
         self.add_button = {"label": "Add Process", "rect": pygame.Rect(500, 150, 150, 32)}
@@ -309,17 +309,44 @@ class SchedulerApp:
 
 
     def draw_menu(self):
-        title = self.font.load().render("Scheduling Simulator - Menu", True, (0,0,0))
-        self.screen.blit(title, (50,10))
+        # 1) Main title at top‐left
+        title_surf = self.font.load().render("Scheduling Simulator - Menu", True, (0, 0, 0))
+        self.screen.blit(title_surf, (50, 10))
+
+        # 2) Draw algorithm cards
         for card in self.algo_buttons:
             card.draw(self.screen)
+
+        # 3) “Select Process Mode” + buttons in a horizontal row, bottom‐right
+        label_surf = self.font.load().render("Select Process Mode:", True, (0, 0, 0))
+        label_w, label_h = label_surf.get_size()
+
+        # assume all mode buttons are same size
+        btn_w, btn_h = self.mode_buttons[0]["rect"].size
+        spacing     = 10
+        margin      = 20
+
+        total_btns_w = len(self.mode_buttons) * btn_w + (len(self.mode_buttons) - 1) * spacing
+        total_w      = label_w + spacing + total_btns_w
+
+        start_x = self.width - margin - total_w
+        y       = self.height - margin - btn_h
+
+        # draw the label
+        self.screen.blit(label_surf, (start_x, y + (btn_h - label_h) // 2))
+
+        # draw each button to the right of the label
+        x = start_x + label_w + spacing
         for btn in self.mode_buttons:
-            color = (0,200,0) if self.process_mode == btn["mode"] else (200,200,200)
+            btn["rect"].topleft = (x, y)
+            color = (0, 200, 0) if self.process_mode == btn["mode"] else (200, 200, 200)
             pygame.draw.rect(self.screen, color, btn["rect"])
-            text = self.font.load().render(btn["label"], True, (0,0,0))
-            self.screen.blit(text, btn["rect"].move(10,3))
-        mode_text = self.font.load().render("Select Process Mode:", True, (0,0,0))
-        self.screen.blit(mode_text, (50,80))
+            lbl_surf = self.font.load().render(btn["label"], True, (0, 0, 0))
+            # center text inside the button
+            lbl_x = x + (btn_w - lbl_surf.get_width()) // 2
+            lbl_y = y + (btn_h - lbl_surf.get_height()) // 2
+            self.screen.blit(lbl_surf, (lbl_x, lbl_y))
+            x += btn_w + spacing
 
     def draw_input_screen(self):
         title = self.font.load().render("Custom Process Input", True, (0,0,0))
