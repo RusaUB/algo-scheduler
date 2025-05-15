@@ -388,113 +388,108 @@ class SchedulerApp:
         if not self.scheduler or not self.scheduler.timeline:
             return
 
-        # Draw Gantt chart
+        # ─── Gantt Chart ───────────────────────────────────────────────────────────────
         start_time = min(seg[1] for seg in self.scheduler.timeline)
         end_time   = max(seg[2] for seg in self.scheduler.timeline)
-        total_time = end_time - start_time if end_time != start_time else 1
+        total_time = max(end_time - start_time, 1)
         chart_top    = 150
         chart_height = 100
         chart_left   = 50
         chart_width  = self.width - 100
 
-        pygame.draw.line(
-            self.screen, (0,0,0),
-            (chart_left, chart_top+chart_height),
-            (chart_left+chart_width, chart_top+chart_height), 2
-        )
-
-        for pid, seg_start, seg_end in self.scheduler.timeline:
-            x    = chart_left + ((seg_start - start_time) / total_time) * chart_width
-            w    = ((seg_end   - seg_start)  / total_time) * chart_width
+        pygame.draw.line(self.screen, (0,0,0),
+                        (chart_left, chart_top+chart_height),
+                        (chart_left+chart_width, chart_top+chart_height), 2)
+        for pid, s, e in self.scheduler.timeline:
+            x = chart_left + ((s - start_time) / total_time) * chart_width
+            w = ((e - s) / total_time) * chart_width
             rect = pygame.Rect(x, chart_top, w, chart_height)
             pygame.draw.rect(self.screen, (100,180,100), rect)
-            pygame.draw.line(
-                self.screen, (0,0,0),
-                (x + w, chart_top),
-                (x + w, chart_top+chart_height), 2
-            )
+            pygame.draw.line(self.screen, (0,0,0),
+                            (x+w, chart_top),
+                            (x+w, chart_top+chart_height), 2)
             lbl = self.font.load().render(f"P{pid}", True, (255,255,255))
             self.screen.blit(lbl, rect.move(5,5))
+        for i in range(7):
+            t = start_time + i * (total_time/6)
+            xm = chart_left + ((t - start_time)/total_time) * chart_width
+            mark = self.font.load().render(f"{t:.1f}", True, (0,0,0))
+            self.screen.blit(mark, (xm-10, chart_top+chart_height+5))
 
-        # Time markers
-        num_markers = 6
-        for i in range(num_markers+1):
-            t = start_time + i * (total_time/num_markers)
-            x = chart_left + ((t - start_time) / total_time) * chart_width
-            tl = self.font.load().render(f"{t:.1f}", True, (0,0,0))
-            self.screen.blit(tl, (x-10, chart_top+chart_height+5))
+        # ─── Processes Table (full‐width) ───────────────────────────────────────────────
+        left_margin = 50
+        right_margin = 50
+        table_x = left_margin
+        table_width = self.width - left_margin - right_margin
+        row_h =  thirty = 30
+        cols = ["PID", "Arrival", "Burst", "Deadline"]
+        n_cols = len(cols)
+        col_w = table_width / n_cols
+        # Header row
+        hdr_rect = pygame.Rect(table_x, chart_top + chart_height + 50, table_width, row_h)
+        pygame.draw.rect(self.screen, (200,200,200), hdr_rect)
+        for i, h in enumerate(cols):
+            cx = table_x + col_w * i + col_w/2
+            cy = hdr_rect.y + row_h/2
+            txt = self.font.load().render(h, True, (0,0,0))
+            self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
+            # vertical divider
+            pygame.draw.line(self.screen, (0,0,0),
+                            (table_x + col_w*(i+1), hdr_rect.y),
+                            (table_x + col_w*(i+1), hdr_rect.y + row_h))
+        # Rows
+        for idx, p in enumerate(self.processes):
+            y = hdr_rect.y + row_h*(idx+1)
+            bg = (230,230,230) if idx%2==0 else (245,245,245)
+            pygame.draw.rect(self.screen, bg, (table_x, y, table_width, row_h))
+            cells = [
+                str(p.pid),
+                f"{p.arrival_time:.1f}",
+                f"{p.burst_time:.1f}",
+                f"{p.deadline:.1f}" if p.deadline is not None else "-"
+            ]
+            for i, val in enumerate(cells):
+                cx = table_x + col_w * i + col_w/2
+                cy = y + row_h/2
+                txt = self.font.load().render(val, True, (0,0,0))
+                self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
+                pygame.draw.line(self.screen, (180,180,180),
+                                (table_x + col_w*(i+1), y),
+                                (table_x + col_w*(i+1), y + row_h))
+            pygame.draw.line(self.screen, (180,180,180),
+                            (table_x, y+row_h),
+                            (table_x + table_width, y+row_h))
 
-        # Random processes list
-        if self.process_mode == "random":
-            proc_title = self.font.load().render("Random Processes:", True, (0,0,0))
-            self.screen.blit(proc_title, (50, chart_top+chart_height+50))
-            y = chart_top + chart_height + 80
-            for p in self.processes:
-                details = f"P{p.pid}: Arrival={p.arrival_time}, Burst={p.burst_time}"
-                if p.deadline is not None:
-                    details += f", Deadline={p.deadline}"
-                line = self.font.load().render(details, True, (0,0,0))
-                self.screen.blit(line, (50, y))
-                y += 30
-
-        # Average metrics
+        # ─── Average Metrics ───────────────────────────────────────────────────────────
+        base_y = hdr_rect.y + row_h * (len(self.processes) + 2)
         avg_wt  = self.scheduler.average_waiting_time()
         avg_tat = self.scheduler.average_turnaround_time()
-        wt_text  = self.font.load().render(f"Avg waiting time: {avg_wt:.2f}", True, (0,0,0))
-        tat_text = self.font.load().render(f"Avg turnaround time: {avg_tat:.2f}", True, (0,0,0))
-        self.screen.blit(wt_text,  (chart_left, chart_top + chart_height + 250))
-        self.screen.blit(tat_text, (chart_left, chart_top + chart_height + 280))
+        wt_txt  = self.font.load().render(f"Avg waiting time: {avg_wt:.2f}", True, (0,0,0))
+        tat_txt = self.font.load().render(f"Avg turnaround time: {avg_tat:.2f}", True, (0,0,0))
+        self.screen.blit(wt_txt,  (table_x, base_y))
+        self.screen.blit(tat_txt, (table_x, base_y + row_h))
 
-        # === Buttons ===
-        # 1) Back button at left margin
-        left_margin = 50
+        # ─── Buttons ───────────────────────────────────────────────────────────────────
+        # Back at left margin
         btn_y = self.back_button["rect"].y
         self.back_button["rect"].topleft = (left_margin, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_txt = self.font.load().render(self.back_button["label"], True, (255,255,255))
-        back_rect = back_txt.get_rect(center=self.back_button["rect"].center)
-        self.screen.blit(back_txt, back_rect)
+        bl = self.font.load().render(self.back_button["label"], True, (255,255,255))
+        self.screen.blit(bl, bl.get_rect(center=self.back_button["rect"].center))
 
-        # 2) Compare & Replay right-aligned in a flex row
-        right_margin = 50
+        # Compare & Replay right-aligned
         spacing = 10
-        right_buttons = [
-            (self.compare_button, (200,100,50)),
-            (self.replay_button,  (50,50,200)),
-        ]
-        total_w = sum(b["rect"].width for b,_ in right_buttons) + spacing*(len(right_buttons)-1)
-        x_start = self.width - right_margin - total_w
-        for btn, color in right_buttons:
-            btn["rect"].topleft = (x_start, btn_y)
+        right_btns = [(self.compare_button,(200,100,50)),
+                    (self.replay_button,(50,50,200))]
+        total_w = sum(b["rect"].width for b,_ in right_btns) + spacing*(len(right_btns)-1)
+        x = self.width - right_margin - total_w
+        for btn, color in right_btns:
+            btn["rect"].topleft = (x, btn_y)
             pygame.draw.rect(self.screen, color, btn["rect"])
             txt = self.font.load().render(btn["label"], True, (255,255,255))
-            txt_rect = txt.get_rect(center=btn["rect"].center)
-            self.screen.blit(txt, txt_rect)
-            x_start += btn["rect"].width + spacing
+            self.screen.blit(txt, txt.get_rect(center=btn["rect"].center))
+            x += btn["rect"].width + spacing
 
-
-
-        # If in random mode, list the generated processes
-        if self.process_mode == "random":
-            proc_title = self.font.load().render("Random Processes:", True, (0,0,0))
-            self.screen.blit(proc_title, (50, chart_top+chart_height+50))
-            y = chart_top + chart_height + 80
-            for p in self.processes:
-                details = f"P{p.pid}: Arrival={p.arrival_time}, Burst={p.burst_time}"
-                if p.deadline is not None:
-                    details += f", Deadline={p.deadline}"
-                line = self.font.load().render(details, True, (0,0,0))
-                self.screen.blit(line, (50, y))
-                y += 30
-
-        # Draw average metrics below
-        avg_wt  = self.scheduler.average_waiting_time()
-        avg_tat = self.scheduler.average_turnaround_time()
-        wt_text  = self.font.load().render(f"Avg waiting time: {avg_wt:.2f}", True, (0,0,0))
-        tat_text = self.font.load().render(f"Avg turnaround time: {avg_tat:.2f}", True, (0,0,0))
-        self.screen.blit(wt_text,  (chart_left, chart_top + chart_height + 250))
-        self.screen.blit(tat_text, (chart_left, chart_top + chart_height + 280))
-        
     def draw_replay(self):
         if not self.scheduler or not self.scheduler.timeline:
             return
@@ -584,6 +579,7 @@ class SchedulerApp:
                 # label
                 label = self.font.load().render(f"P{pid}", True, (255,255,255))
                 self.screen.blit(label, rect.move(5,5))
+                
     def initialize_scheduler(self):
         if self.selected_algo == "FCFS":
             self.scheduler = FCFS_Scheduler()
