@@ -184,9 +184,19 @@ class SchedulerApp:
         sys.exit()
 
     def handle_comparison_event(self, event):
+        # Let the table detect any "See all table" clicks first
+        self.table.handle_event(
+            event,
+            cols=["PID", "Arrival", "Burst", "Deadline"],
+            processes=self.processes,
+            spacing=30
+        )
+
+        # Now handle the Back button
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.back_button["rect"].collidepoint(event.pos):
                 self.state = "simulation"
+
 
 
     def handle_menu_event(self, event):
@@ -321,18 +331,29 @@ class SchedulerApp:
         self.screen.fill((240,240,240))
 
         # Title
-        title = self.font.load().render("Comparison: Avg Waiting & Turnaround Times", True, (0,0,0))
-        self.screen.blit(title, (50, 10))
-
-        # Show process table without metrics
-        self.draw_results(
-            processes=self.processes,
-            chart_top=10,
-            chart_height=10,
-            show_metrics=False
+        title_surf = self.font.load().render(
+            "Comparison: Avg Waiting & Turnaround Times", True, (0,0,0)
         )
+        self.screen.blit(title_surf, (50, 10))
 
-        # --- Compute metrics for each algorithm ---
+        # ─── Process Table (with truncation) ───────────────────────────────────────────
+        table_x = 50
+        table_y = 50
+        cols    = ["PID", "Arrival", "Burst", "Deadline"]
+        truncate_count = 5
+        # draw up to `truncate_count` rows, with "See all table" if more
+        self.table.draw(
+            screen    = self.screen,
+            x         = table_x,
+            y         = table_y,
+            cols      = cols,
+            processes = self.processes,
+            spacing   = 30,
+            truncate  = truncate_count
+        )
+        table_h = self.table.get_height()
+
+        # ─── Compute metrics for each algorithm ────────────────────────────────────────
         labels = ["FCFS", "SJN", "RR", "RM", "DF"]
         ctors  = [
             FCFS_Scheduler,
@@ -346,17 +367,17 @@ class SchedulerApp:
         for lbl, ctor in zip(labels, ctors):
             sched = ctor()
             for orig in self.processes:
-                arrival, burst, dead = orig.arrival_time, orig.burst_time, orig.deadline
-                if lbl in ("RM", "DF") and dead is None:
-                    dead = arrival + burst + 3
-                sched.add_process(Process(orig.pid, arrival, burst, dead))
+                a, b, d = orig.arrival_time, orig.burst_time, orig.deadline
+                if lbl in ("RM", "DF") and d is None:
+                    d = a + b + 3
+                sched.add_process(Process(orig.pid, a, b, d))
             sched.schedule()
             wait_times.append(sched.average_waiting_time())
             turn_times.append(sched.average_turnaround_time())
 
-        # --- Draw bar chart ---
+        # ─── Draw bar chart ────────────────────────────────────────────────────────────
         chart_x      = 50
-        chart_y      = 300
+        chart_y      = table_y + table_h + 20
         chart_width  = self.width - 100
         chart_height = 200
         n            = len(labels)
@@ -373,7 +394,7 @@ class SchedulerApp:
                         (chart_x, chart_y),
                         (chart_x, chart_y + chart_height), 2)
 
-        # Y-axis tick labels & grid lines
+        # Y-axis ticks & grid
         num_yticks = 5
         for i in range(num_yticks + 1):
             val = max_val * i / num_yticks
@@ -384,44 +405,40 @@ class SchedulerApp:
                             (chart_x, y),
                             (chart_x + chart_width, y), 1)
 
-        # Bars + x-labels
+        # Bars + algorithm labels
         for i, lbl in enumerate(labels):
             base_x = chart_x + spacing_grp + i * (group_w + spacing_grp)
-            # Waiting time bar (left)
+            # waiting bar
             h_w = (wait_times[i] / max_val) * chart_height
             rect_w = pygame.Rect(base_x,
                                 chart_y + chart_height - h_w,
-                                bar_w,
-                                h_w)
+                                bar_w, h_w)
             pygame.draw.rect(self.screen, (254,90,90), rect_w)
-            # Turnaround time bar (right)
+            # turnaround bar
             h_t = (turn_times[i] / max_val) * chart_height
             rect_t = pygame.Rect(base_x + bar_w,
                                 chart_y + chart_height - h_t,
-                                bar_w,
-                                h_t)
+                                bar_w, h_t)
             pygame.draw.rect(self.screen, (90,180,254), rect_t)
 
-            # Algorithm label under group
+            # algorithm label
             lbl_surf = self.font.load().render(lbl, True, (0,0,0))
             lbl_rect = lbl_surf.get_rect(
                 center=(base_x + group_w/2, chart_y + chart_height + 20)
             )
             self.screen.blit(lbl_surf, lbl_rect)
 
-        # --- Legend (centered between bar clusters) ---
+        # ─── Legend ────────────────────────────────────────────────────────────────────
         lw_surf = self.font.load().render("Avg Waiting", True, (254,90,90))
         lt_surf = self.font.load().render("Avg Turnaround", True, (90,180,254))
         spacing_leg = 40
         total_leg_w = lw_surf.get_width() + spacing_leg + lt_surf.get_width()
         legend_x = chart_x + (chart_width - total_leg_w) / 2
         legend_y = chart_y + chart_height + 50
-        # Waiting legend
         self.screen.blit(lw_surf, (legend_x, legend_y))
-        # Turnaround legend
         self.screen.blit(lt_surf, (legend_x + lw_surf.get_width() + spacing_leg, legend_y))
 
-        # --- Back button at left margin ---
+        # ─── Back button ───────────────────────────────────────────────────────────────
         left_margin = 50
         btn_y = self.back_button["rect"].y
         self.back_button["rect"].topleft = (left_margin, btn_y)
@@ -727,7 +744,6 @@ class SchedulerApp:
 
                 label = self.font.load().render(f"P{pid}", True, (255,255,255))
                 self.screen.blit(label, rect.move(5,5))
-
               
     def initialize_scheduler(self):
         # Set up the scheduler instance
