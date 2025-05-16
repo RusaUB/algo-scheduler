@@ -43,7 +43,17 @@ class TextInputBox:
                 self.txt_surface = pygame.font.Font(None, 24).render(self.text, True, self.color)
         return None
 
-    def draw(self, screen):
+    def draw(self, screen, placeholder=''):
+        # decide what to render: real text or placeholder
+        if self.text:
+            disp = self.text
+            col  = self.color
+        else:
+            disp = placeholder
+            col  = pygame.Color('grey')   # light grey for placeholder
+
+        # re-render surface with chosen color
+        self.txt_surface = pygame.font.Font(None, 24).render(disp, True, col)
         screen.blit(self.txt_surface, (self.rect.x+5, self.rect.y+5))
         pygame.draw.rect(screen, self.color, self.rect, 2)
 
@@ -196,33 +206,58 @@ class SchedulerApp:
                     self.process_mode = btn["mode"]
 
     def handle_input_event(self, event):
-        # Handle events for each text input box.
+        # Forward events to the input boxes
         self.arrival_box.handle_event(event)
         self.burst_box.handle_event(event)
         if self.selected_algo in ("RM", "DF"):
             self.deadline_box.handle_event(event)
+
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
+
+            # ── Add Process ───────────────────────────────────────────────
             if self.add_button["rect"].collidepoint(pos):
                 try:
-                    arrival = float(self.arrival_box.text)
-                    burst = float(self.burst_box.text)
+                    # 1) Compute the next unused arrival time
+                    used = {int(p[0]) for p in self.custom_inputs}
+                    next_arrival = 0
+                    while next_arrival in used:
+                        next_arrival += 1
+
+                    # 2) Arrival: use user input if present, otherwise default
+                    if not self.arrival_box.text.strip():
+                        arrival = next_arrival
+                    else:
+                        arrival = float(self.arrival_box.text)
+
+                    # 3) Burst: random 1–10 if blank
+                    if not self.burst_box.text.strip():
+                        burst = random.randint(1, 10)
+                    else:
+                        burst = float(self.burst_box.text)
+
+                    # 4) Deadline (for RM/DF): default = arrival + burst + rand(0–5)
                     deadline = None
                     if self.selected_algo in ("RM", "DF"):
-                        deadline = float(self.deadline_box.text) if self.deadline_box.text.strip() != "" else arrival + burst + 3
+                        if not self.deadline_box.text.strip():
+                            deadline = arrival + burst + random.randint(0, 5)
+                        else:
+                            deadline = float(self.deadline_box.text)
+
+                    # 5) Append and clear inputs
                     self.custom_inputs.append((arrival, burst, deadline))
-                    self.arrival_box.text = ""
-                    self.burst_box.text = ""
-                    self.deadline_box.text = ""
-                    self.arrival_box.txt_surface = pygame.font.Font(None, 24).render("", True, self.arrival_box.color)
-                    self.burst_box.txt_surface = pygame.font.Font(None, 24).render("", True, self.burst_box.color)
-                    self.deadline_box.txt_surface = pygame.font.Font(None, 24).render("", True, self.deadline_box.color)
-                except Exception as e:
+                    for box in (self.arrival_box, self.burst_box, self.deadline_box):
+                        box.text = ""
+                        box.txt_surface = pygame.font.Font(None, 24).render("", True, box.color)
+
+                except Exception:
                     print("Invalid input! Please enter valid numbers.")
+
+            # ── Start Simulation ───────────────────────────────────────────
             if self.start_sim_button["rect"].collidepoint(pos):
                 self.processes = []
                 pid = 1
-                for (arrival, burst, deadline) in self.custom_inputs:
+                for arrival, burst, deadline in self.custom_inputs:
                     self.processes.append(Process(pid, arrival, burst, deadline))
                     pid += 1
                 if not self.processes:
@@ -231,6 +266,8 @@ class SchedulerApp:
                 self.initialize_scheduler()
                 self.scheduler.schedule()
                 self.state = "simulation"
+
+            # ── Back to Menu ───────────────────────────────────────────────
             if self.back_button["rect"].collidepoint(pos):
                 self.state = "menu"
                 self.custom_inputs = []
@@ -405,38 +442,49 @@ class SchedulerApp:
 
 
     def draw_input_screen(self):
+        # Title
         title = self.font.load().render("Custom Process Input", True, (0,0,0))
         self.screen.blit(title, (50,50))
 
-        # Arrival Time
+        # ─── Compute placeholder arrival as the smallest non-negative integer
+        used = {int(p[0]) for p in self.custom_inputs}
+        next_arrival_val = 0
+        while next_arrival_val in used:
+            next_arrival_val += 1
+        next_arrival = str(next_arrival_val)
+
+        # Burst & deadline placeholders remain “random”
+        next_burst    = "random"
+        next_deadline = "random" if self.selected_algo in ("RM", "DF") else ""
+
+        # Arrival Time label + box
         arrival_label = self.font.load().render("Arrival Time:", True, (0,0,0))
         self.screen.blit(arrival_label, (50,120))
-        self.arrival_box.draw(self.screen)
+        self.arrival_box.draw(self.screen, placeholder=next_arrival)
 
-        # Burst Time
+        # Burst Time label + box
         burst_label = self.font.load().render("Burst Time:", True, (0,0,0))
         self.screen.blit(burst_label, (200,120))
-        self.burst_box.draw(self.screen)
+        self.burst_box.draw(self.screen, placeholder=next_burst)
 
-        # Deadline (if needed)
+        # Deadline label + box (for RM/DF)
         if self.selected_algo in ("RM", "DF"):
             deadline_label = self.font.load().render("Deadline:", True, (0,0,0))
             self.screen.blit(deadline_label, (350,120))
-            self.deadline_box.draw(self.screen)
+            self.deadline_box.draw(self.screen, placeholder=next_deadline)
 
         # Add Process button
         pygame.draw.rect(self.screen, (50,150,50), self.add_button["rect"])
         add_text = self.font.load().render(self.add_button["label"], True, (255,255,255))
         self.screen.blit(add_text, self.add_button["rect"].move(5,5))
 
-        # ─── Processes Added Table ─────────────────────────────────────────────────────
+        # Processes Added Table
         table_x = 50
         table_y = 220
         table_w = self.width - 100
         row_h   = 30
-        cols    = ["PID", "Arrival", "Burst", "Deadline"]
+        cols    = ["#", "Arrival", "Burst", "Deadline"]
         col_w   = table_w / len(cols)
-
         # Header
         hdr_rect = pygame.Rect(table_x, table_y, table_w, row_h)
         pygame.draw.rect(self.screen, (200,200,200), hdr_rect)
@@ -445,11 +493,9 @@ class SchedulerApp:
             cy = table_y + row_h/2
             txt = self.font.load().render(h, True, (0,0,0))
             self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
-            # vertical divider
             pygame.draw.line(self.screen, (0,0,0),
                             (table_x + col_w*(i+1), table_y),
                             (table_x + col_w*(i+1), table_y + row_h))
-
         # Rows
         for idx, (arrival, burst, deadline) in enumerate(self.custom_inputs):
             y = table_y + row_h * (idx+1)
@@ -469,24 +515,23 @@ class SchedulerApp:
                 pygame.draw.line(self.screen, (180,180,180),
                                 (table_x + col_w*(i+1), y),
                                 (table_x + col_w*(i+1), y + row_h))
-            # horizontal divider
             pygame.draw.line(self.screen, (180,180,180),
                             (table_x, y+row_h),
                             (table_x + table_w, y+row_h))
 
-        # ─── Bottom Buttons ────────────────────────────────────────────────────────────
+        # Bottom buttons
         bottom_margin = 50
         btn_y = self.height - bottom_margin - self.back_button["rect"].height
         left_margin  = 50
         right_margin = 50
 
-        # Back button
+        # Back button (left)
         self.back_button["rect"].topleft = (left_margin, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
         back_txt = self.font.load().render(self.back_button["label"], True, (255,255,255))
         self.screen.blit(back_txt, back_txt.get_rect(center=self.back_button["rect"].center))
 
-        # Start Simulation button
+        # Start Simulation button (right, black bg)
         w, h = self.start_sim_button["rect"].size
         start_x = self.width - right_margin - w
         self.start_sim_button["rect"].topleft = (start_x, btn_y)
