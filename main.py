@@ -12,6 +12,9 @@ from algorithms.utils import *
 from ui.fonts import Font
 from ui.cards import Card
 
+from components.table import Table
+from components.container import Container
+
 class TextInputBox:
     def __init__(self, x, y, w, h, text=''):
         self.rect = pygame.Rect(x, y, w, h)
@@ -70,6 +73,7 @@ class SchedulerApp:
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("Scheduling Simulator (Pygame)")
         self.clock = pygame.time.Clock()
+        
         # States: "menu", "input", "simulation", "replay"
         self.state = "menu"
         self.process_mode = "random"  # "random" or "custom"
@@ -85,6 +89,8 @@ class SchedulerApp:
         self.replaying = False
         self.replay_start_time = None
         self.replay_duration = 5000  # 5 seconds
+
+        self.margin_x = 50
 
         # Parameters
         titles      = [
@@ -303,8 +309,6 @@ class SchedulerApp:
             processes=self.processes,
             chart_top=10,
             chart_height=10,
-            left_margin=50,
-            right_margin=50,
             show_metrics=False
         )
 
@@ -540,58 +544,23 @@ class SchedulerApp:
         self.screen.blit(start_txt, start_txt.get_rect(center=self.start_sim_button["rect"].center))
 
 
-    def draw_results(self, processes, chart_top, chart_height, left_margin, right_margin, show_metrics = True):
-        # ─── Processes Table (full‐width) ───────────────────────────────────────────────
-        table_x = left_margin
-        table_width = self.width - left_margin - right_margin
-        row_h =  thirty = 30
-        cols = ["PID", "Arrival", "Burst", "Deadline"]
-        n_cols = len(cols)
-        col_w = table_width / n_cols
-        # Header row
-        hdr_rect = pygame.Rect(table_x, chart_top + chart_height + 50, table_width, row_h)
-        pygame.draw.rect(self.screen, (200,200,200), hdr_rect)
-        for i, h in enumerate(cols):
-            cx = table_x + col_w * i + col_w/2
-            cy = hdr_rect.y + row_h/2
-            txt = self.font.load().render(h, True, (0,0,0))
-            self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
-            # vertical divider
-            pygame.draw.line(self.screen, (0,0,0),
-                            (table_x + col_w*(i+1), hdr_rect.y),
-                            (table_x + col_w*(i+1), hdr_rect.y + row_h))
-        # Rows
-        for idx, p in enumerate(processes):
-            y = hdr_rect.y + row_h*(idx+1)
-            bg = (230,230,230) if idx%2==0 else (245,245,245)
-            pygame.draw.rect(self.screen, bg, (table_x, y, table_width, row_h))
-            cells = [
-                str(p.pid),
-                f"{p.arrival_time:.1f}",
-                f"{p.burst_time:.1f}",
-                f"{p.deadline:.1f}" if p.deadline is not None else "-"
-            ]
-            for i, val in enumerate(cells):
-                cx = table_x + col_w * i + col_w/2
-                cy = y + row_h/2
-                txt = self.font.load().render(val, True, (0,0,0))
-                self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
-                pygame.draw.line(self.screen, (180,180,180),
-                                (table_x + col_w*(i+1), y),
-                                (table_x + col_w*(i+1), y + row_h))
-            pygame.draw.line(self.screen, (180,180,180),
-                            (table_x, y+row_h),
-                            (table_x + table_width, y+row_h))
-            
-        if show_metrics:    
-            # ─── Average Metrics ───────────────────────────────────────────────────────────
-            base_y = hdr_rect.y + row_h * (len(self.processes) + 2)
-            avg_wt  = self.scheduler.average_waiting_time()
-            avg_tat = self.scheduler.average_turnaround_time()
-            wt_txt  = self.font.load().render(f"Avg waiting time: {avg_wt:.2f}", True, (0,0,0))
-            tat_txt = self.font.load().render(f"Avg turnaround time: {avg_tat:.2f}", True, (0,0,0))
-            self.screen.blit(wt_txt,  (table_x, base_y))
-            self.screen.blit(tat_txt, (table_x, base_y + row_h))
+    def draw_results(self, processes, chart_top, chart_height, spacing_y = 20, show_metrics=True):
+        # 1) Table
+        tbl = Table(self.width, self.height, self.font)
+        tbl.draw(self.screen, self.margin_x, chart_top+chart_height+50,
+                cols=["PID","Arrival","Burst","Deadline"],
+                processes=processes,
+                spacing=30)
+
+        cur_y = chart_top + chart_height + 50 + tbl.get_height() + spacing_y
+
+        # 2) Avg metrics container
+        if show_metrics:
+            ctr = Container(self.font, direction="col", spacing=5)
+            ctr.add_text(f"Avg waiting time: {self.scheduler.average_waiting_time():.2f}")
+            ctr.add_text(f"Avg turnaround time: {self.scheduler.average_turnaround_time():.2f}")
+            ctr.draw(self.screen, self.margin_x, cur_y)
+
     
     def draw_simulation(self):
         title = self.font.load().render("Simulation Result", True, (0,0,0))
@@ -629,7 +598,7 @@ class SchedulerApp:
 
         left_margin = 50
         right_margin = 50
-        self.draw_results(processes=self.processes, chart_height=chart_height, chart_top=chart_top, left_margin=left_margin, right_margin=right_margin)
+        self.draw_results(processes=self.processes, chart_height=chart_height, chart_top=chart_top)
 
         # ─── Buttons ───────────────────────────────────────────────────────────────────
         # Back at left margin
@@ -689,7 +658,7 @@ class SchedulerApp:
             proc_title = self.font.load().render("Random Processes:", True, (0,0,0))
             self.screen.blit(proc_title, (50, chart_top+chart_height+50))
             y = chart_top+chart_height+80
-            self.draw_results(processes=self.processes, chart_top=chart_top, chart_height=chart_height, left_margin=50, right_margin=50)
+            self.draw_results(processes=self.processes, chart_top=chart_top, chart_height=chart_height )
 
         # Draw your static buttons
         pygame.draw.rect(self.screen, (50,50,200), self.replay_button["rect"])
