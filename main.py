@@ -606,38 +606,39 @@ class SchedulerApp:
             return
 
         # ─── Static UI ────────────────────────────────────────────────────────────────
-        # Title
         title = self.font.load().render("Simulation Result (Replay)", True, (0,0,0))
         self.screen.blit(title, (50,10))
 
         # Compute chart geometry
-        start_time = min(seg[1] for seg in self.scheduler.timeline)
-        end_time   = max(seg[2] for seg in self.scheduler.timeline)
-        total_time = end_time - start_time if end_time != start_time else 1
+        start_time   = min(seg[1] for seg in self.scheduler.timeline)
+        end_time     = max(seg[2] for seg in self.scheduler.timeline)
+        total_time   = end_time - start_time if end_time != start_time else 1
         chart_top    = 150
         chart_height = 100
         chart_left   = 50
         chart_width  = self.width - 100
 
-        # X-axis
-        pygame.draw.line(self.screen, (0,0,0),
-                        (chart_left, chart_top+chart_height),
-                        (chart_left+chart_width, chart_top+chart_height), 2)
+        # X‐axis
+        pygame.draw.line(
+            self.screen, (0,0,0),
+            (chart_left, chart_top+chart_height),
+            (chart_left+chart_width, chart_top+chart_height),
+            2
+        )
 
         # Time markers
         for i in range(7):
-            t = start_time + i * (total_time/6)
+            t  = start_time + i * (total_time/6)
             xm = chart_left + ((t - start_time) / total_time) * chart_width
             mark = self.font.load().render(f"{t:.1f}", True, (0,0,0))
             self.screen.blit(mark, (xm-10, chart_top+chart_height+5))
 
-        # Process table (random-mode)
-        if self.process_mode == "random":
-            self.draw_results(
-                processes=self.processes,
-                chart_top=chart_top,
-                chart_height=chart_height,
-            )
+        # ─── Process Table (both random & custom) ─────────────────────────────────────
+        self.draw_results(
+            processes    = self.processes,
+            chart_top    = chart_top,
+            chart_height = chart_height,
+        )
 
         # ─── Static Buttons ───────────────────────────────────────────────────────────
         left_margin, right_margin = 50, 50
@@ -676,26 +677,28 @@ class SchedulerApp:
             if progress >= norm_start:
                 portion = min(
                     1.0,
-                    (progress - norm_start) / (norm_end - norm_start)
-                    if (norm_end - norm_start) > 0 else 1
+                    (progress - norm_start) /
+                    ((norm_end - norm_start) if norm_end > norm_start else 1)
                 )
                 x0     = chart_left + norm_start * chart_width
                 full_w = (norm_end - norm_start) * chart_width
                 cur_w  = full_w * portion
 
                 rect = pygame.Rect(x0, chart_top, cur_w, chart_height)
-                # use the same stable colors as in draw_simulation
                 color = self.process_colors.get(pid, (100,180,100))
                 pygame.draw.rect(self.screen, color, rect)
 
                 if progress >= norm_end:
-                    pygame.draw.line(self.screen, (0,0,0),
-                                    (x0+full_w, chart_top),
-                                    (x0+full_w, chart_top+chart_height), 2)
+                    pygame.draw.line(
+                        self.screen, (0,0,0),
+                        (x0+full_w, chart_top),
+                        (x0+full_w, chart_top+chart_height),
+                        2
+                    )
 
                 label = self.font.load().render(f"P{pid}", True, (255,255,255))
                 self.screen.blit(label, rect.move(5,5))
-              
+ 
     def initialize_scheduler(self):
         # Set up the scheduler instance
         if self.selected_algo == "FCFS":
