@@ -9,6 +9,7 @@ from algorithms.rms import RateMonotonicScheduler
 from algorithms.dfs import DeadlineFirstScheduler
 from algorithms.utils import *
 
+from components.gantt_chart import GanttChart
 from ui.fonts import Font
 from ui.cards import Card
 
@@ -579,37 +580,17 @@ class SchedulerApp:
         chart_left   = 50
         chart_width  = self.width - 100
 
-        # Draw x-axis
-        pygame.draw.line(self.screen, (0,0,0),
-                        (chart_left, chart_top+chart_height),
-                        (chart_left+chart_width, chart_top+chart_height), 2)
-
-        # Draw each segment with its assigned color
-        for pid, s, e in self.scheduler.timeline:
-            x = chart_left + ((s - start_time) / total_time) * chart_width
-            w = ((e - s) / total_time) * chart_width
-            rect = pygame.Rect(x, chart_top, w, chart_height)
-
-            # use the stable color for this PID
-            color = self.process_colors.get(pid, (100,180,100))
-            pygame.draw.rect(self.screen, color, rect)
-
-            # divider line
-            pygame.draw.line(self.screen, (0,0,0),
-                            (x+w, chart_top),
-                            (x+w, chart_top+chart_height), 2)
-
-            # label
-            lbl = self.font.load().render(f"P{pid}", True, (255,255,255))
-            self.screen.blit(lbl, rect.move(5,5))
-
-        # Time markers
-        for i in range(7):
-            t = start_time + i * (total_time/6)
-            xm = chart_left + ((t - start_time)/total_time) * chart_width
-            mark = self.font.load().render(f"{t:.1f}", True, (0,0,0))
-            self.screen.blit(mark, (xm-10, chart_top+chart_height+5))
-
+        # inside draw_simulation():
+        gc = GanttChart(
+            x=chart_left,
+            y=chart_top,
+            width=chart_width,
+            height=chart_height,
+            timeline=self.scheduler.timeline,
+            process_colors=self.process_colors
+        )
+        gc.draw(self.screen, self.font)
+        
         # Draw processes table and metrics...
         self.draw_results(processes=self.processes, chart_height=chart_height, chart_top=chart_top)
 
