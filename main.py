@@ -407,38 +407,93 @@ class SchedulerApp:
     def draw_input_screen(self):
         title = self.font.load().render("Custom Process Input", True, (0,0,0))
         self.screen.blit(title, (50,50))
-        # Draw labels and input boxes for each parameter.
+
+        # Arrival Time
         arrival_label = self.font.load().render("Arrival Time:", True, (0,0,0))
         self.screen.blit(arrival_label, (50,120))
         self.arrival_box.draw(self.screen)
 
+        # Burst Time
         burst_label = self.font.load().render("Burst Time:", True, (0,0,0))
         self.screen.blit(burst_label, (200,120))
         self.burst_box.draw(self.screen)
 
+        # Deadline (if needed)
         if self.selected_algo in ("RM", "DF"):
             deadline_label = self.font.load().render("Deadline:", True, (0,0,0))
             self.screen.blit(deadline_label, (350,120))
             self.deadline_box.draw(self.screen)
 
+        # Add Process button
         pygame.draw.rect(self.screen, (50,150,50), self.add_button["rect"])
         add_text = self.font.load().render(self.add_button["label"], True, (255,255,255))
         self.screen.blit(add_text, self.add_button["rect"].move(5,5))
-        y = 220
-        list_title = self.font.load().render("Processes Added:", True, (0,0,0))
-        self.screen.blit(list_title, (50,y))
-        y += 30
-        for idx, proc in enumerate(self.custom_inputs):
-            proc_text = f"{idx+1}: Arrival={proc[0]}, Burst={proc[1]}" + (f", Deadline={proc[2]}" if proc[2] is not None else "")
-            line = self.font.load().render(proc_text, True, (0,0,0))
-            self.screen.blit(line, (50,y))
-            y += 30
-        pygame.draw.rect(self.screen, (200,50,50), self.start_sim_button["rect"])
-        start_text = self.font.load().render(self.start_sim_button["label"], True, (255,255,255))
-        self.screen.blit(start_text, self.start_sim_button["rect"].move(5,5))
+
+        # ─── Processes Added Table ─────────────────────────────────────────────────────
+        table_x = 50
+        table_y = 220
+        table_w = self.width - 100
+        row_h   = 30
+        cols    = ["PID", "Arrival", "Burst", "Deadline"]
+        col_w   = table_w / len(cols)
+
+        # Header
+        hdr_rect = pygame.Rect(table_x, table_y, table_w, row_h)
+        pygame.draw.rect(self.screen, (200,200,200), hdr_rect)
+        for i, h in enumerate(cols):
+            cx = table_x + col_w * i + col_w/2
+            cy = table_y + row_h/2
+            txt = self.font.load().render(h, True, (0,0,0))
+            self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
+            # vertical divider
+            pygame.draw.line(self.screen, (0,0,0),
+                            (table_x + col_w*(i+1), table_y),
+                            (table_x + col_w*(i+1), table_y + row_h))
+
+        # Rows
+        for idx, (arrival, burst, deadline) in enumerate(self.custom_inputs):
+            y = table_y + row_h * (idx+1)
+            bg = (230,230,230) if idx % 2 == 0 else (245,245,245)
+            pygame.draw.rect(self.screen, bg, (table_x, y, table_w, row_h))
+            cells = [
+                str(idx+1),
+                f"{arrival:.1f}",
+                f"{burst:.1f}",
+                f"{deadline:.1f}" if deadline is not None else "-"
+            ]
+            for i, val in enumerate(cells):
+                cx = table_x + col_w * i + col_w/2
+                cy = y + row_h/2
+                txt = self.font.load().render(val, True, (0,0,0))
+                self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
+                pygame.draw.line(self.screen, (180,180,180),
+                                (table_x + col_w*(i+1), y),
+                                (table_x + col_w*(i+1), y + row_h))
+            # horizontal divider
+            pygame.draw.line(self.screen, (180,180,180),
+                            (table_x, y+row_h),
+                            (table_x + table_w, y+row_h))
+
+        # ─── Bottom Buttons ────────────────────────────────────────────────────────────
+        bottom_margin = 50
+        btn_y = self.height - bottom_margin - self.back_button["rect"].height
+        left_margin  = 50
+        right_margin = 50
+
+        # Back button
+        self.back_button["rect"].topleft = (left_margin, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_text = self.font.load().render("Back", True, (255,255,255))
-        self.screen.blit(back_text, self.back_button["rect"].move(10,5))
+        back_txt = self.font.load().render(self.back_button["label"], True, (255,255,255))
+        self.screen.blit(back_txt, back_txt.get_rect(center=self.back_button["rect"].center))
+
+        # Start Simulation button
+        w, h = self.start_sim_button["rect"].size
+        start_x = self.width - right_margin - w
+        self.start_sim_button["rect"].topleft = (start_x, btn_y)
+        pygame.draw.rect(self.screen, (0,0,0), self.start_sim_button["rect"])
+        start_txt = self.font.load().render(self.start_sim_button["label"], True, (255,255,255))
+        self.screen.blit(start_txt, start_txt.get_rect(center=self.start_sim_button["rect"].center))
+
 
     def draw_results(self, processes, chart_top, chart_height, left_margin, right_margin, show_metrics = True):
         # ─── Processes Table (full‐width) ───────────────────────────────────────────────
