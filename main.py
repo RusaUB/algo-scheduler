@@ -227,37 +227,51 @@ class SchedulerApp:
                     self.process_mode = btn["mode"]
 
     def handle_input_event(self, event):
+        # First, let the table detect any "See all table" clicks
+        from algorithms.process import Process
+        proc_objs = [
+            Process(idx+1, arrival, burst, deadline)
+            for idx, (arrival, burst, deadline) in enumerate(self.custom_inputs)
+        ]
+        self.table.handle_event(
+            event,
+            cols=["#", "Arrival", "Burst", "Deadline"],
+            processes=proc_objs,
+            spacing=30
+        )
+
         # Forward events to the input boxes
         self.arrival_box.handle_event(event)
         self.burst_box.handle_event(event)
         if self.selected_algo in ("RM", "DF"):
             self.deadline_box.handle_event(event)
 
+        # Handle mouse clicks
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
 
-            # ── Add Process ───────────────────────────────────────────────
+            # Add Process
             if self.add_button["rect"].collidepoint(pos):
                 try:
-                    # 1) Compute the next unused arrival time
+                    # Compute next unused arrival
                     used = {int(p[0]) for p in self.custom_inputs}
                     next_arrival = 0
                     while next_arrival in used:
                         next_arrival += 1
 
-                    # 2) Arrival: use user input if present, otherwise default
+                    # Arrival
                     if not self.arrival_box.text.strip():
                         arrival = next_arrival
                     else:
                         arrival = float(self.arrival_box.text)
 
-                    # 3) Burst: random 1–10 if blank
+                    # Burst
                     if not self.burst_box.text.strip():
                         burst = random.randint(1, 10)
                     else:
                         burst = float(self.burst_box.text)
 
-                    # 4) Deadline (for RM/DF): default = arrival + burst + rand(0–5)
+                    # Deadline
                     deadline = None
                     if self.selected_algo in ("RM", "DF"):
                         if not self.deadline_box.text.strip():
@@ -265,7 +279,7 @@ class SchedulerApp:
                         else:
                             deadline = float(self.deadline_box.text)
 
-                    # 5) Append and clear inputs
+                    # Append and clear
                     self.custom_inputs.append((arrival, burst, deadline))
                     for box in (self.arrival_box, self.burst_box, self.deadline_box):
                         box.text = ""
@@ -274,8 +288,8 @@ class SchedulerApp:
                 except Exception:
                     print("Invalid input! Please enter valid numbers.")
 
-            # ── Start Simulation ───────────────────────────────────────────
-            if self.start_sim_button["rect"].collidepoint(pos):
+            # Start Simulation
+            elif self.start_sim_button["rect"].collidepoint(pos):
                 self.processes = []
                 pid = 1
                 for arrival, burst, deadline in self.custom_inputs:
@@ -288,8 +302,8 @@ class SchedulerApp:
                 self.scheduler.schedule()
                 self.state = "simulation"
 
-            # ── Back to Menu ───────────────────────────────────────────────
-            if self.back_button["rect"].collidepoint(pos):
+            # Back to Menu
+            elif self.back_button["rect"].collidepoint(pos):
                 self.state = "menu"
                 self.custom_inputs = []
 
@@ -476,46 +490,26 @@ class SchedulerApp:
         add_text = self.font.load().render(self.add_button["label"], True, (255,255,255))
         self.screen.blit(add_text, self.add_button["rect"].move(5,5))
 
-        # Processes Added Table
+        # ─── Processes Added Table (truncate at 5 rows) ───────────────────────────────
+        from algorithms.process import Process
         table_x = 50
         table_y = 220
-        table_w = self.width - 100
-        row_h   = 30
         cols    = ["#", "Arrival", "Burst", "Deadline"]
-        col_w   = table_w / len(cols)
-        # Header
-        hdr_rect = pygame.Rect(table_x, table_y, table_w, row_h)
-        pygame.draw.rect(self.screen, (200,200,200), hdr_rect)
-        for i, h in enumerate(cols):
-            cx = table_x + col_w * i + col_w/2
-            cy = table_y + row_h/2
-            txt = self.font.load().render(h, True, (0,0,0))
-            self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
-            pygame.draw.line(self.screen, (0,0,0),
-                            (table_x + col_w*(i+1), table_y),
-                            (table_x + col_w*(i+1), table_y + row_h))
-        # Rows
-        for idx, (arrival, burst, deadline) in enumerate(self.custom_inputs):
-            y = table_y + row_h * (idx+1)
-            bg = (230,230,230) if idx % 2 == 0 else (245,245,245)
-            pygame.draw.rect(self.screen, bg, (table_x, y, table_w, row_h))
-            cells = [
-                str(idx+1),
-                f"{arrival:.1f}",
-                f"{burst:.1f}",
-                f"{deadline:.1f}" if deadline is not None else "-"
-            ]
-            for i, val in enumerate(cells):
-                cx = table_x + col_w * i + col_w/2
-                cy = y + row_h/2
-                txt = self.font.load().render(val, True, (0,0,0))
-                self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
-                pygame.draw.line(self.screen, (180,180,180),
-                                (table_x + col_w*(i+1), y),
-                                (table_x + col_w*(i+1), y + row_h))
-            pygame.draw.line(self.screen, (180,180,180),
-                            (table_x, y+row_h),
-                            (table_x + table_w, y+row_h))
+        # convert custom_inputs tuples into Process objects
+        proc_objs = [
+            Process(idx+1, arrival, burst, deadline)
+            for idx,(arrival,burst,deadline) in enumerate(self.custom_inputs)
+        ]
+        # draw up to 5 rows, show "See all table" link if more
+        self.table.draw(
+            screen    = self.screen,
+            x         = table_x,
+            y         = table_y,
+            cols      = cols,
+            processes = proc_objs,
+            spacing   = 30,
+            truncate  = 5
+        )
 
         # Bottom buttons
         bottom_margin = 50
