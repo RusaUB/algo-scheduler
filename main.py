@@ -9,6 +9,7 @@ from algorithms.rms import RateMonotonicScheduler
 from algorithms.dfs import DeadlineFirstScheduler
 from algorithms.utils import *
 
+from components.bar_chart import BarChart
 from components.gantt_chart import GanttChart
 from ui.fonts import Font
 from ui.cards import Card
@@ -292,6 +293,7 @@ class SchedulerApp:
                 self.state = "menu"
                 self.custom_inputs = []
 
+
     def handle_simulation_event(self, event):
         # First, let the table detect any "See all table" clicks
         self.table.handle_event(
@@ -353,7 +355,11 @@ class SchedulerApp:
         )
         table_h = self.table.get_height()
 
-        # ─── Compute metrics for each algorithm ────────────────────────────────────────
+        chart_x      = 50
+        chart_y      = table_y + table_h + 80
+        chart_w      = self.width - 100
+        chart_h      = 200
+
         labels = ["FCFS", "SJN", "RR", "RM", "DF"]
         ctors  = [
             FCFS_Scheduler,
@@ -375,68 +381,19 @@ class SchedulerApp:
             wait_times.append(sched.average_waiting_time())
             turn_times.append(sched.average_turnaround_time())
 
-        # ─── Draw bar chart ────────────────────────────────────────────────────────────
-        chart_x      = 50
-        chart_y      = table_y + table_h + 20
-        chart_width  = self.width - 100
-        chart_height = 200
-        n            = len(labels)
-        spacing_grp  = 20
-        group_w      = (chart_width - spacing_grp * (n + 1)) / n
-        bar_w        = group_w / 2
-        max_val      = max(max(wait_times), max(turn_times), 1)
+        bc = BarChart(
+            labels=labels,
+            wait_times  = wait_times,
+            turn_times  = turn_times,
+            x           = chart_x,
+            y           = chart_y,
+            width       = chart_w,
+            height      = chart_h,
+            bar_colors  = ((254,90,90),(90,180,254)),
+            marker_count= 5   # or 0 if you don’t want grid/ticks
+        )
 
-        # Axes
-        pygame.draw.line(self.screen, (0,0,0),
-                        (chart_x, chart_y + chart_height),
-                        (chart_x + chart_width, chart_y + chart_height), 2)
-        pygame.draw.line(self.screen, (0,0,0),
-                        (chart_x, chart_y),
-                        (chart_x, chart_y + chart_height), 2)
-
-        # Y-axis ticks & grid
-        num_yticks = 5
-        for i in range(num_yticks + 1):
-            val = max_val * i / num_yticks
-            y   = chart_y + chart_height - (i / num_yticks) * chart_height
-            lbl = self.font.load().render(f"{val:.1f}", True, (0,0,0))
-            self.screen.blit(lbl, (chart_x - lbl.get_width() - 10, y - lbl.get_height()/2))
-            pygame.draw.line(self.screen, (200,200,200),
-                            (chart_x, y),
-                            (chart_x + chart_width, y), 1)
-
-        # Bars + algorithm labels
-        for i, lbl in enumerate(labels):
-            base_x = chart_x + spacing_grp + i * (group_w + spacing_grp)
-            # waiting bar
-            h_w = (wait_times[i] / max_val) * chart_height
-            rect_w = pygame.Rect(base_x,
-                                chart_y + chart_height - h_w,
-                                bar_w, h_w)
-            pygame.draw.rect(self.screen, (254,90,90), rect_w)
-            # turnaround bar
-            h_t = (turn_times[i] / max_val) * chart_height
-            rect_t = pygame.Rect(base_x + bar_w,
-                                chart_y + chart_height - h_t,
-                                bar_w, h_t)
-            pygame.draw.rect(self.screen, (90,180,254), rect_t)
-
-            # algorithm label
-            lbl_surf = self.font.load().render(lbl, True, (0,0,0))
-            lbl_rect = lbl_surf.get_rect(
-                center=(base_x + group_w/2, chart_y + chart_height + 20)
-            )
-            self.screen.blit(lbl_surf, lbl_rect)
-
-        # ─── Legend ────────────────────────────────────────────────────────────────────
-        lw_surf = self.font.load().render("Avg Waiting", True, (254,90,90))
-        lt_surf = self.font.load().render("Avg Turnaround", True, (90,180,254))
-        spacing_leg = 40
-        total_leg_w = lw_surf.get_width() + spacing_leg + lt_surf.get_width()
-        legend_x = chart_x + (chart_width - total_leg_w) / 2
-        legend_y = chart_y + chart_height + 50
-        self.screen.blit(lw_surf, (legend_x, legend_y))
-        self.screen.blit(lt_surf, (legend_x + lw_surf.get_width() + spacing_leg, legend_y))
+        bc.draw(self.screen, self.font)
 
         # ─── Back button ───────────────────────────────────────────────────────────────
         left_margin = 50
