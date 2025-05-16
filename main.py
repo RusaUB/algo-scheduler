@@ -91,6 +91,7 @@ class SchedulerApp:
         self.replay_start_time = None
         self.replay_duration = 5000  # 5 seconds
 
+        self.table = Table(self.width, self.height, self.font)
         self.margin_x = 50
 
         # Parameters
@@ -282,14 +283,29 @@ class SchedulerApp:
                 self.custom_inputs = []
 
     def handle_simulation_event(self, event):
+        # First, let the table detect any "See all table" clicks
+        self.table.handle_event(
+            event,
+            cols=["PID", "Arrival", "Burst", "Deadline"],
+            processes=self.processes,
+            spacing=30
+        )
+
+        # Then handle the normal simulation‐state buttons
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
+
+            # Replay button
             if self.replay_button["rect"].collidepoint(pos):
                 self.state = "replay"
                 self.replaying = True
                 self.replay_start_time = pygame.time.get_ticks()
+
+            # Compare Metrics button
             elif self.compare_button["rect"].collidepoint(pos):
                 self.state = "compare"
+
+            # Back to Menu button
             elif self.back_button["rect"].collidepoint(pos):
                 self.state = "menu"
                 self.process_mode = "random"
@@ -298,6 +314,7 @@ class SchedulerApp:
                 self.processes = []
                 self.custom_inputs = []
                 self.replaying = False
+
                 
     def draw_comparison(self):
         # Clear background
@@ -549,13 +566,13 @@ class SchedulerApp:
 
     def draw_results(self, processes, chart_top, chart_height, spacing_y = 20, show_metrics=True):
         # 1) Table
-        tbl = Table(self.width, self.height, self.font)
-        tbl.draw(self.screen, self.margin_x, chart_top+chart_height+50,
+
+        self.table.draw(self.screen, self.margin_x, chart_top+chart_height+50,
                 cols=["PID","Arrival","Burst","Deadline"],
                 processes=processes,
                 spacing=30)
 
-        cur_y = chart_top + chart_height + 50 + tbl.get_height() + spacing_y
+        cur_y = chart_top + chart_height + 50 + self.table.get_height() + spacing_y
 
         # 2) Avg metrics container
         if show_metrics:
@@ -577,12 +594,11 @@ class SchedulerApp:
         total_time = max(end_time - start_time, 1)
         chart_top    = 150
         chart_height = 100
-        chart_left   = 50
         chart_width  = self.width - 100
 
         # inside draw_simulation():
         gc = GanttChart(
-            x=chart_left,
+            x=self.margin_x,
             y=chart_top,
             width=chart_width,
             height=chart_height,
