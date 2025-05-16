@@ -711,6 +711,7 @@ class SchedulerApp:
 
                 label = self.font.load().render(f"P{pid}", True, (255,255,255))
                 self.screen.blit(label, rect.move(5,5))
+
               
     def initialize_scheduler(self):
         # Set up the scheduler instance
