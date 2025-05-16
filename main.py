@@ -254,61 +254,119 @@ class SchedulerApp:
                 self.replaying = False
                 
     def draw_comparison(self):
+        # Clear background
         self.screen.fill((240,240,240))
+
         # Title
-        title = self.font.load().render("Comparison: Processes & Avg Metrics", True, (0,0,0))
-        self.screen.blit(title, (50,10))
+        title = self.font.load().render("Comparison: Avg Waiting & Turnaround Times", True, (0,0,0))
+        self.screen.blit(title, (50, 10))
 
-        # 1) Show all processes
-        proc_title = self.font.load().render("Processes:", True, (0,0,0))
-        self.screen.blit(proc_title, (50,50))
-        y = 80
-        for p in self.processes:
-            details = f"P{p.pid}: Arrival={p.arrival_time}, Burst={p.burst_time}"
-            if p.deadline is not None:
-                details += f", Deadline={p.deadline}"
-            line = self.font.load().render(details, True, (0,0,0))
-            self.screen.blit(line, (50, y))
-            y += 25
+        # Show process table without metrics
+        self.draw_results(
+            processes=self.processes,
+            chart_top=10,
+            chart_height=10,
+            left_margin=50,
+            right_margin=50,
+            show_metrics=False
+        )
 
-        # Spacer
-        y += 10
-        metrics_title = self.font.load().render("Average Waiting / Turnaround Times:", True, (0,0,0))
-        self.screen.blit(metrics_title, (50, y))
-        y +=  30
-
-        # 2) Compare algorithms
+        # --- Compute metrics for each algorithm ---
         labels = ["FCFS", "SJN", "RR", "RM", "DF"]
-        algos  = [
+        ctors  = [
             FCFS_Scheduler,
             ShortestJobNextScheduler,
             lambda: RoundRobinScheduler(time_quantum=2),
             RateMonotonicScheduler,
             DeadlineFirstScheduler
         ]
-
-        for lbl, ctor in zip(labels, algos):
+        wait_times = []
+        turn_times = []
+        for lbl, ctor in zip(labels, ctors):
             sched = ctor()
             for orig in self.processes:
                 arrival, burst, dead = orig.arrival_time, orig.burst_time, orig.deadline
-                # supply default for RM/DF only if needed
                 if lbl in ("RM", "DF") and dead is None:
                     dead = arrival + burst + 3
-                proc_copy = Process(orig.pid, arrival, burst, dead)
-                sched.add_process(proc_copy)
-
+                sched.add_process(Process(orig.pid, arrival, burst, dead))
             sched.schedule()
-            awt  = sched.average_waiting_time()
-            atat = sched.average_turnaround_time()
-            text = f"{lbl}: Avg wait = {awt:.2f}, Avg turn = {atat:.2f}"
-            txt_surf = self.font.load().render(text, True, (0,0,0))
-            self.screen.blit(txt_surf, (50, y))
-            y += 25
+            wait_times.append(sched.average_waiting_time())
+            turn_times.append(sched.average_turnaround_time())
 
-        # Back button
+        # --- Draw bar chart ---
+        chart_x      = 50
+        chart_y      = 300
+        chart_width  = self.width - 100
+        chart_height = 200
+        n            = len(labels)
+        spacing_grp  = 20
+        group_w      = (chart_width - spacing_grp * (n + 1)) / n
+        bar_w        = group_w / 2
+        max_val      = max(max(wait_times), max(turn_times), 1)
+
+        # Axes
+        pygame.draw.line(self.screen, (0,0,0),
+                        (chart_x, chart_y + chart_height),
+                        (chart_x + chart_width, chart_y + chart_height), 2)
+        pygame.draw.line(self.screen, (0,0,0),
+                        (chart_x, chart_y),
+                        (chart_x, chart_y + chart_height), 2)
+
+        # Y-axis tick labels & grid lines
+        num_yticks = 5
+        for i in range(num_yticks + 1):
+            val = max_val * i / num_yticks
+            y   = chart_y + chart_height - (i / num_yticks) * chart_height
+            lbl = self.font.load().render(f"{val:.1f}", True, (0,0,0))
+            self.screen.blit(lbl, (chart_x - lbl.get_width() - 10, y - lbl.get_height()/2))
+            pygame.draw.line(self.screen, (200,200,200),
+                            (chart_x, y),
+                            (chart_x + chart_width, y), 1)
+
+        # Bars + x-labels
+        for i, lbl in enumerate(labels):
+            base_x = chart_x + spacing_grp + i * (group_w + spacing_grp)
+            # Waiting time bar (left)
+            h_w = (wait_times[i] / max_val) * chart_height
+            rect_w = pygame.Rect(base_x,
+                                chart_y + chart_height - h_w,
+                                bar_w,
+                                h_w)
+            pygame.draw.rect(self.screen, (254,90,90), rect_w)
+            # Turnaround time bar (right)
+            h_t = (turn_times[i] / max_val) * chart_height
+            rect_t = pygame.Rect(base_x + bar_w,
+                                chart_y + chart_height - h_t,
+                                bar_w,
+                                h_t)
+            pygame.draw.rect(self.screen, (90,180,254), rect_t)
+
+            # Algorithm label under group
+            lbl_surf = self.font.load().render(lbl, True, (0,0,0))
+            lbl_rect = lbl_surf.get_rect(
+                center=(base_x + group_w/2, chart_y + chart_height + 20)
+            )
+            self.screen.blit(lbl_surf, lbl_rect)
+
+        # --- Legend (centered between bar clusters) ---
+        lw_surf = self.font.load().render("Avg Waiting", True, (254,90,90))
+        lt_surf = self.font.load().render("Avg Turnaround", True, (90,180,254))
+        spacing_leg = 40
+        total_leg_w = lw_surf.get_width() + spacing_leg + lt_surf.get_width()
+        legend_x = chart_x + (chart_width - total_leg_w) / 2
+        legend_y = chart_y + chart_height + 50
+        # Waiting legend
+        self.screen.blit(lw_surf, (legend_x, legend_y))
+        # Turnaround legend
+        self.screen.blit(lt_surf, (legend_x + lw_surf.get_width() + spacing_leg, legend_y))
+
+        # --- Back button at left margin ---
+        left_margin = 50
+        btn_y = self.back_button["rect"].y
+        self.back_button["rect"].topleft = (left_margin, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_text = self.font.load().render("Back", True, (255,255,255))
-        self.screen.blit(back_text, self.back_button["rect"].move(10,5))
+        back_txt = self.font.load().render(self.back_button["label"], True, (255,255,255))
+        self.screen.blit(back_txt, back_txt.get_rect(center=self.back_button["rect"].center))
 
 
     def draw_menu(self):
@@ -382,7 +440,7 @@ class SchedulerApp:
         back_text = self.font.load().render("Back", True, (255,255,255))
         self.screen.blit(back_text, self.back_button["rect"].move(10,5))
 
-    def draw_results(self, processes, chart_top, chart_height, left_margin, right_margin):
+    def draw_results(self, processes, chart_top, chart_height, left_margin, right_margin, show_metrics = True):
         # ─── Processes Table (full‐width) ───────────────────────────────────────────────
         table_x = left_margin
         table_width = self.width - left_margin - right_margin
@@ -425,14 +483,15 @@ class SchedulerApp:
                             (table_x, y+row_h),
                             (table_x + table_width, y+row_h))
             
-        # ─── Average Metrics ───────────────────────────────────────────────────────────
-        base_y = hdr_rect.y + row_h * (len(self.processes) + 2)
-        avg_wt  = self.scheduler.average_waiting_time()
-        avg_tat = self.scheduler.average_turnaround_time()
-        wt_txt  = self.font.load().render(f"Avg waiting time: {avg_wt:.2f}", True, (0,0,0))
-        tat_txt = self.font.load().render(f"Avg turnaround time: {avg_tat:.2f}", True, (0,0,0))
-        self.screen.blit(wt_txt,  (table_x, base_y))
-        self.screen.blit(tat_txt, (table_x, base_y + row_h))
+        if show_metrics:    
+            # ─── Average Metrics ───────────────────────────────────────────────────────────
+            base_y = hdr_rect.y + row_h * (len(self.processes) + 2)
+            avg_wt  = self.scheduler.average_waiting_time()
+            avg_tat = self.scheduler.average_turnaround_time()
+            wt_txt  = self.font.load().render(f"Avg waiting time: {avg_wt:.2f}", True, (0,0,0))
+            tat_txt = self.font.load().render(f"Avg turnaround time: {avg_tat:.2f}", True, (0,0,0))
+            self.screen.blit(wt_txt,  (table_x, base_y))
+            self.screen.blit(tat_txt, (table_x, base_y + row_h))
     
     def draw_simulation(self):
         title = self.font.load().render("Simulation Result", True, (0,0,0))
