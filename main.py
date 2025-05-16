@@ -147,6 +147,8 @@ class SchedulerApp:
         self.compare_button = {"label": "Compare Metrics", "rect": pygame.Rect(200, 550, 200, 40)}
         self.back_button = {"label": "Back to Menu", "rect": pygame.Rect(200, 600, 150, 40)}
 
+        self.process_colors = {}
+
     def run(self):
         running = True
         while running:
@@ -577,32 +579,45 @@ class SchedulerApp:
         chart_left   = 50
         chart_width  = self.width - 100
 
+        # Draw x-axis
         pygame.draw.line(self.screen, (0,0,0),
                         (chart_left, chart_top+chart_height),
                         (chart_left+chart_width, chart_top+chart_height), 2)
+
+        # Draw each segment with its assigned color
         for pid, s, e in self.scheduler.timeline:
             x = chart_left + ((s - start_time) / total_time) * chart_width
             w = ((e - s) / total_time) * chart_width
             rect = pygame.Rect(x, chart_top, w, chart_height)
-            pygame.draw.rect(self.screen, (100,180,100), rect)
+
+            # use the stable color for this PID
+            color = self.process_colors.get(pid, (100,180,100))
+            pygame.draw.rect(self.screen, color, rect)
+
+            # divider line
             pygame.draw.line(self.screen, (0,0,0),
                             (x+w, chart_top),
                             (x+w, chart_top+chart_height), 2)
+
+            # label
             lbl = self.font.load().render(f"P{pid}", True, (255,255,255))
             self.screen.blit(lbl, rect.move(5,5))
+
+        # Time markers
         for i in range(7):
             t = start_time + i * (total_time/6)
             xm = chart_left + ((t - start_time)/total_time) * chart_width
             mark = self.font.load().render(f"{t:.1f}", True, (0,0,0))
             self.screen.blit(mark, (xm-10, chart_top+chart_height+5))
 
-        left_margin = 50
-        right_margin = 50
+        # Draw processes table and metrics...
         self.draw_results(processes=self.processes, chart_height=chart_height, chart_top=chart_top)
 
         # ─── Buttons ───────────────────────────────────────────────────────────────────
-        # Back at left margin
+        left_margin, right_margin = 50, 50
         btn_y = self.back_button["rect"].y
+
+        # Back at left margin
         self.back_button["rect"].topleft = (left_margin, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
         bl = self.font.load().render(self.back_button["label"], True, (255,255,255))
@@ -610,9 +625,9 @@ class SchedulerApp:
 
         # Compare & Replay right-aligned
         spacing = 10
-        right_btns = [(self.compare_button,(200,100,50)),
-                    (self.replay_button,(50,50,200))]
-        total_w = sum(b["rect"].width for b,_ in right_btns) + spacing*(len(right_btns)-1)
+        right_btns = [(self.compare_button, (200,100,50)),
+                    (self.replay_button,  (50,50,200))]
+        total_w = sum(b["rect"].width for b,_ in right_btns) + spacing * (len(right_btns)-1)
         x = self.width - right_margin - total_w
         for btn, color in right_btns:
             btn["rect"].topleft = (x, btn_y)
@@ -625,8 +640,7 @@ class SchedulerApp:
         if not self.scheduler or not self.scheduler.timeline:
             return
 
-        # 1) Draw the same background & static UI that draw_simulation does:
-        # -----------------------------------------------------------------
+        # ─── Static UI ────────────────────────────────────────────────────────────────
         # Title
         title = self.font.load().render("Simulation Result (Replay)", True, (0,0,0))
         self.screen.blit(title, (50,10))
@@ -640,72 +654,85 @@ class SchedulerApp:
         chart_left   = 50
         chart_width  = self.width - 100
 
-        # Draw x-axis
+        # X-axis
         pygame.draw.line(self.screen, (0,0,0),
-                         (chart_left, chart_top+chart_height),
-                         (chart_left+chart_width, chart_top+chart_height), 2)
+                        (chart_left, chart_top+chart_height),
+                        (chart_left+chart_width, chart_top+chart_height), 2)
 
-        # Draw time markers
-        num_markers = 6
-        for i in range(num_markers+1):
-            t = start_time + i * (total_time/num_markers)
-            x = chart_left + ((t - start_time) / total_time) * chart_width
-            time_label = self.font.load().render(f"{t:.1f}", True, (0,0,0))
-            self.screen.blit(time_label, (x-10, chart_top+chart_height+5))
+        # Time markers
+        for i in range(7):
+            t = start_time + i * (total_time/6)
+            xm = chart_left + ((t - start_time) / total_time) * chart_width
+            mark = self.font.load().render(f"{t:.1f}", True, (0,0,0))
+            self.screen.blit(mark, (xm-10, chart_top+chart_height+5))
 
-        # Draw the process list (for random mode)
+        # Process table (random-mode)
         if self.process_mode == "random":
-            proc_title = self.font.load().render("Random Processes:", True, (0,0,0))
-            self.screen.blit(proc_title, (50, chart_top+chart_height+50))
-            y = chart_top+chart_height+80
-            self.draw_results(processes=self.processes, chart_top=chart_top, chart_height=chart_height )
+            self.draw_results(
+                processes=self.processes,
+                chart_top=chart_top,
+                chart_height=chart_height,
+            )
 
-        # Draw your static buttons
-        pygame.draw.rect(self.screen, (50,50,200), self.replay_button["rect"])
-        rep_text = self.font.load().render(self.replay_button["label"], True, (255,255,255))
-        self.screen.blit(rep_text, self.replay_button["rect"].move(5,5))
+        # ─── Static Buttons ───────────────────────────────────────────────────────────
+        left_margin, right_margin = 50, 50
+        btn_y = self.back_button["rect"].y
 
-        pygame.draw.rect(self.screen, (200,100,50), self.compare_button["rect"])
-        cmp_text = self.font.load().render(self.compare_button["label"], True, (255,255,255))
-        self.screen.blit(cmp_text, self.compare_button["rect"].move(5,5))
-
+        # Back at left
+        self.back_button["rect"].topleft = (left_margin, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_text = self.font.load().render("Back", True, (255,255,255))
-        self.screen.blit(back_text, self.back_button["rect"].move(10,5))
+        back_lbl = self.font.load().render(self.back_button["label"], True, (255,255,255))
+        self.screen.blit(back_lbl, back_lbl.get_rect(center=self.back_button["rect"].center))
 
-        # 2) Now draw the animated bars *on top*:
-        # -----------------------------------------
-        now     = pygame.time.get_ticks()
-        elapsed = now - self.replay_start_time
+        # Compare & Replay right-aligned
+        spacing = 10
+        right_btns = [
+            (self.compare_button, (200,100,50)),
+            (self.replay_button,  (50,50,200)),
+        ]
+        total_w = sum(b["rect"].width for b,_ in right_btns) + spacing * (len(right_btns)-1)
+        x = self.width - right_margin - total_w
+        for btn, color in right_btns:
+            btn["rect"].topleft = (x, btn_y)
+            pygame.draw.rect(self.screen, color, btn["rect"])
+            lbl = self.font.load().render(btn["label"], True, (255,255,255))
+            self.screen.blit(lbl, lbl.get_rect(center=btn["rect"].center))
+            x += btn["rect"].width + spacing
+
+        # ─── Animated Bars ────────────────────────────────────────────────────────────
+        now      = pygame.time.get_ticks()
+        elapsed  = now - self.replay_start_time
         progress = min(elapsed / self.replay_duration, 1.0)
 
-        for seg in self.scheduler.timeline:
-            pid, seg_start, seg_end = seg
+        for pid, seg_start, seg_end in self.scheduler.timeline:
             norm_start = (seg_start - start_time) / total_time
             norm_end   = (seg_end   - start_time) / total_time
 
             if progress >= norm_start:
-                portion = min(1.0,
-                              (progress - norm_start) / (norm_end - norm_start)
-                              if (norm_end - norm_start) > 0 else 1)
-                x0 = chart_left + norm_start * chart_width
+                portion = min(
+                    1.0,
+                    (progress - norm_start) / (norm_end - norm_start)
+                    if (norm_end - norm_start) > 0 else 1
+                )
+                x0     = chart_left + norm_start * chart_width
                 full_w = (norm_end - norm_start) * chart_width
-                cur_w = full_w * portion
+                cur_w  = full_w * portion
 
                 rect = pygame.Rect(x0, chart_top, cur_w, chart_height)
-                pygame.draw.rect(self.screen, (100,180,100), rect)
+                # use the same stable colors as in draw_simulation
+                color = self.process_colors.get(pid, (100,180,100))
+                pygame.draw.rect(self.screen, color, rect)
 
                 if progress >= norm_end:
-                    # finalize the divider if fully done
                     pygame.draw.line(self.screen, (0,0,0),
-                                     (x0+full_w, chart_top),
-                                     (x0+full_w, chart_top+chart_height), 2)
+                                    (x0+full_w, chart_top),
+                                    (x0+full_w, chart_top+chart_height), 2)
 
-                # label
                 label = self.font.load().render(f"P{pid}", True, (255,255,255))
                 self.screen.blit(label, rect.move(5,5))
-                
+              
     def initialize_scheduler(self):
+        # Set up the scheduler instance
         if self.selected_algo == "FCFS":
             self.scheduler = FCFS_Scheduler()
         elif self.selected_algo == "SJN":
@@ -716,9 +743,21 @@ class SchedulerApp:
             self.scheduler = RateMonotonicScheduler()
         elif self.selected_algo == "DF":
             self.scheduler = DeadlineFirstScheduler()
+
+        # Add all processes
         if self.scheduler:
             for p in self.processes:
                 self.scheduler.add_process(p)
+
+        # Assign each PID a stable random color if not already present
+        for p in self.processes:
+            if p.pid not in self.process_colors:
+                self.process_colors[p.pid] = (
+                    random.randint(50, 200),
+                    random.randint(50, 200),
+                    random.randint(50, 200)
+                )
+
 
 def main_pygame():
     app = SchedulerApp()
