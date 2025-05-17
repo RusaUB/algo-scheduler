@@ -532,6 +532,8 @@ class SchedulerApp:
         if self.selected_algo == "DF":
             lbl = self.font.load().render("Deadline:", True, (0,0,0))
             self.screen.blit(lbl, (500,120))
+            # reposition the input box to sit under the label
+            self.deadline_box.rect.topleft = (500, self.deadline_box.rect.y)
             self.deadline_box.draw(self.screen, placeholder=deadline_ph)
 
         # ─── Add Process button ──────────────────────────────────────────────────────
