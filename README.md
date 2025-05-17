@@ -57,14 +57,6 @@ A Python-based scheduling simulator supporting multiple algorithms: FCFS, SJN, R
 
 From the project root, with the virtual environment activated:
 
-### Command-Line Interface (CLI)
-
-```bash
-python main.py
-```
-
-* When prompted, enter `1` to launch the CLI.
-* Follow on-screen instructions to select an algorithm, input or generate processes, and view results.
 
 ### Pygame Graphical Interface
 
@@ -72,14 +64,14 @@ python main.py
 python main.py
 ```
 
-* When prompted, enter `2` to launch the Pygame window.
-* Click on algorithm cards, choose random or custom processes, and step through simulations.
+
+Click on algorithm cards, choose random or custom processes, and step through simulations.
 
 ---
 
 ## File Structure
 
-* `main.py` — Entry point; contains both CLI and Pygame interfaces
+* `main.py` — Entry point; contains Pygame interface
 * `algorithms/` — Scheduling implementations (FCFS, SJN, RR, RM, EDF)
 * `ui/` — Fonts and card UI components
 * `components/` — Table, GanttChart, BarChart, Container classes
