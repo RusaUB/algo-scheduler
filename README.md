@@ -18,6 +18,7 @@ A Python-based scheduling simulator supporting multiple algorithms: FCFS, SJN, R
 
    ```bash
    git clone https://github.com/RusaUB/algo-scheduler.git
+   cd algo-scheduler
    ```
 
 2. **Create a virtual environment**
