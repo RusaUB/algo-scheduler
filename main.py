@@ -245,28 +245,26 @@ class SchedulerApp:
                     self.process_mode = btn["mode"]
 
     def handle_input_event(self, event):
-        # Let the table handle any "See all table" clicks first
+        # Let the table catch any “See all…” clicks first
         from algorithms.process import Process
         proc_objs = [
             Process(
                 pid=idx+1,
                 arrival_time=a,
                 burst_time=b,
-                deadline=dl if self.selected_algo == "DF" else None,
-                period=pr if self.selected_algo in ("RM", "DF") else None
+                period=pr,
+                deadline=dl
             )
-            for idx, (a, b, pr, dl) in enumerate(self.custom_inputs)
+            for idx, (a,b,pr,dl) in enumerate(self.custom_inputs)
         ]
         self.table.handle_event(
             event,
-            cols=["#", "Arrival", "Burst"]
-                 + (["Period"] if self.selected_algo in ("RM", "DF") else [])
-                 + (["Deadline"] if self.selected_algo == "DF" else []),
+            cols=["#", "Arrival", "Burst", "Period", "Deadline"],
             processes=proc_objs,
             spacing=30
         )
 
-        # Forward events to text boxes
+        # Forward events to our text‐boxes
         self.arrival_box.handle_event(event)
         self.burst_box.handle_event(event)
         if self.selected_algo in ("RM", "DF"):
@@ -274,87 +272,73 @@ class SchedulerApp:
         if self.selected_algo == "DF":
             self.deadline_box.handle_event(event)
 
-        # Mouse clicks
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
 
-            # ─── Add Process ───────────────────────────────────────────────────────
+            # — Add Process —
             if self.add_button["rect"].collidepoint(pos):
-                # Enforce maximum number of processes
-                if len(self.custom_inputs) >= self.MAX_PROCESSES:
-                    print(f"Cannot add more than {self.MAX_PROCESSES} processes.")
-                    return
-
                 try:
-                    # Arrival
+                    # 1) arrival
                     if self.arrival_box.text.strip():
                         arrival = float(self.arrival_box.text)
                     else:
-                        used = {int(p[0]) for p in self.custom_inputs}
+                        # next unused integer
+                        used = {int(x[0]) for x in self.custom_inputs}
                         arrival = next(i for i in range(1000) if i not in used)
 
-                    # Burst
+                    # 2) burst
                     if self.burst_box.text.strip():
                         burst = float(self.burst_box.text)
                     else:
                         burst = random.randint(1, 10)
 
-                    # Period (RM & DF)
-                    period = None
-                    if self.selected_algo in ("RM", "DF"):
-                        if self.period_box.text.strip():
-                            period = float(self.period_box.text)
-                        else:
-                            period = random.randint(int(burst)+1, int(burst)+10)
+                    # 3) period (always generate even if this algorithm doesn't use it)
+                    if self.period_box.text.strip():
+                        period = float(self.period_box.text)
+                    else:
+                        period = burst + random.randint(1, 10)
 
-                    # Deadline (DF only)
-                    deadline = None
-                    if self.selected_algo == "DF":
-                        if self.deadline_box.text.strip():
-                            deadline = float(self.deadline_box.text)
-                        else:
-                            deadline = arrival + burst + random.randint(0, 5)
+                    # 4) deadline
+                    if self.deadline_box.text.strip():
+                        deadline = float(self.deadline_box.text)
+                    else:
+                        deadline = arrival + burst + random.randint(0, 5)
 
-                        # Ensure unique deadlines
-                        existing_deadlines = {inp[3] for inp in self.custom_inputs}
-                        if deadline in existing_deadlines:
-                            print("EDF requires unique deadlines; that one is already used.")
-                            return
-
-                    # Append new process
+                    # store the 4‐tuple
                     self.custom_inputs.append((arrival, burst, period, deadline))
 
-                    # Clear input boxes
+                    # clear the boxes
                     for box in (self.arrival_box, self.burst_box, self.period_box, self.deadline_box):
                         box.text = ""
                         box.txt_surface = pygame.font.Font(None, 24).render("", True, box.color)
 
                 except Exception:
-                    print("Invalid input! Please enter valid numbers.")
+                    print("Invalid input! Please enter numbers.")
 
-            # ─── Start Simulation ───────────────────────────────────────────────────
+            # — Start Simulation —
             elif self.start_sim_button["rect"].collidepoint(pos):
                 self.processes = []
                 pid = 1
                 for a, b, pr, dl in self.custom_inputs:
-                    if self.selected_algo == "RM":
-                        p = Process(pid=pid, arrival_time=a, burst_time=b, period=pr)
-                    elif self.selected_algo == "DF":
-                        p = Process(pid=pid, arrival_time=a, burst_time=b, period=pr, deadline=dl)
-                    else:
-                        p = Process(pid=pid, arrival_time=a, burst_time=b)
-                    self.processes.append(p)
+                    # pass all fields; each algorithm will pick what it needs
+                    self.processes.append(Process(
+                        pid=pid,
+                        arrival_time=a,
+                        burst_time=b,
+                        deadline=dl,
+                        period=pr
+                    ))
                     pid += 1
 
                 if not self.processes:
-                    print("No processes entered!")
+                    print("No processes to simulate!")
                     return
 
                 self.initialize_scheduler()
                 self.scheduler.schedule()
                 self.state = "simulation"
 
-            # ─── Back to Menu ────────────────────────────────────────────────────────
+            # — Back to Menu —
             elif self.back_button["rect"].collidepoint(pos):
                 self.state = "menu"
                 self.custom_inputs.clear()
