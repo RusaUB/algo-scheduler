@@ -87,6 +87,7 @@ class SchedulerApp:
         self.arrival_box = TextInputBox(50, 150, 100, 32)
         self.burst_box = TextInputBox(200, 150, 100, 32)
         self.deadline_box = TextInputBox(350, 150, 100, 32)
+        self.period_box   = TextInputBox(350, 150, 100, 32)
         # For replay animation.
         self.replaying = False
         self.replay_start_time = None
@@ -143,7 +144,7 @@ class SchedulerApp:
             {"label": "Custom", "mode": "custom", "rect": pygame.Rect(200, 20, 120, 30)},
         ]
         # Buttons in custom input state.
-        self.add_button = {"label": "Add Process", "rect": pygame.Rect(500, 150, 150, 32)}
+        self.add_button = {"label": "Add Process", "rect": pygame.Rect(650, 150, 150, 32)}
         self.start_sim_button = {"label": "Start Simulation", "rect": pygame.Rect(500, 200, 200, 40)}
         # In simulation state.
         self.replay_button = {"label": "Replay", "rect": pygame.Rect(50, 600, 120, 40)}
@@ -209,8 +210,13 @@ class SchedulerApp:
                     label = card.title
                     self.selected_algo = self.algo_map[label]
                     if self.process_mode == "random":
-                        include_deadline = self.selected_algo in ("RM", "DF")
-                        self.processes = generate_random_processes(5, include_deadline=include_deadline)
+                        include_period   = self.selected_algo in ("RM","DF")
+                        include_deadline = self.selected_algo == "DF"
+                        self.processes = generate_random_processes(
+                           5,
+                            include_period=include_period,
+                            include_deadline=include_deadline
+                        )
                         self.initialize_scheduler()
                         self.scheduler.schedule()
                         self.state = "simulation"
@@ -230,7 +236,11 @@ class SchedulerApp:
         # First, let the table detect any "See all table" clicks
         from algorithms.process import Process
         proc_objs = [
-            Process(idx+1, arrival, burst, deadline)
+            Process(pid=idx+1,
+                    arrival_time=arrival,
+                    burst_time=burst,
+                    deadline=deadline,
+                    period=deadline if self.selected_algo in ("RM", "DF") else None)
             for idx, (arrival, burst, deadline) in enumerate(self.custom_inputs)
         ]
         self.table.handle_event(
@@ -246,7 +256,7 @@ class SchedulerApp:
         if self.selected_algo in ("RM", "DF"):
             self.deadline_box.handle_event(event)
 
-        # Handle mouse clicks
+        # Handle clicks
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
 
@@ -271,7 +281,7 @@ class SchedulerApp:
                     else:
                         burst = float(self.burst_box.text)
 
-                    # Deadline
+                    # Deadline/Period
                     deadline = None
                     if self.selected_algo in ("RM", "DF"):
                         if not self.deadline_box.text.strip():
@@ -279,8 +289,10 @@ class SchedulerApp:
                         else:
                             deadline = float(self.deadline_box.text)
 
-                    # Append and clear
+                    # Append to custom inputs
                     self.custom_inputs.append((arrival, burst, deadline))
+
+                    # Clear input boxes
                     for box in (self.arrival_box, self.burst_box, self.deadline_box):
                         box.text = ""
                         box.txt_surface = pygame.font.Font(None, 24).render("", True, box.color)
@@ -293,11 +305,38 @@ class SchedulerApp:
                 self.processes = []
                 pid = 1
                 for arrival, burst, deadline in self.custom_inputs:
-                    self.processes.append(Process(pid, arrival, burst, deadline))
+                    if self.selected_algo == "RM":
+                        # RM uses 'deadline' field as the period, ignores deadline
+                        p = Process(
+                            pid=pid,
+                            arrival_time=arrival,
+                            burst_time=burst,
+                            deadline=None,
+                            period=deadline
+                        )
+                    elif self.selected_algo == "DF":
+                        # EDF uses both period and deadline
+                        p = Process(
+                            pid=pid,
+                            arrival_time=arrival,
+                            burst_time=burst,
+                            deadline=deadline,
+                            period=deadline
+                        )
+                    else:
+                        # Other algos ignore deadline/period
+                        p = Process(
+                            pid=pid,
+                            arrival_time=arrival,
+                            burst_time=burst
+                        )
+                    self.processes.append(p)
                     pid += 1
+
                 if not self.processes:
                     print("No processes entered!")
                     return
+
                 self.initialize_scheduler()
                 self.scheduler.schedule()
                 self.state = "simulation"
@@ -387,10 +426,13 @@ class SchedulerApp:
         for lbl, ctor in zip(labels, ctors):
             sched = ctor()
             for orig in self.processes:
-                a, b, d = orig.arrival_time, orig.burst_time, orig.deadline
-                if lbl in ("RM", "DF") and d is None:
-                    d = a + b + 3
-                sched.add_process(Process(orig.pid, a, b, d))
+                sched.add_process(Process(
+                    pid          = orig.pid,
+                    arrival_time = orig.arrival_time,
+                    burst_time   = orig.burst_time,
+                    deadline     = orig.deadline if self.selected_algo=="DF" else None,
+                    period       = orig.deadline if self.selected_algo in ("RM","DF") else None
+                ))
             sched.schedule()
             wait_times.append(sched.average_waiting_time())
             turn_times.append(sched.average_turnaround_time())
@@ -458,91 +500,192 @@ class SchedulerApp:
         title = self.font.load().render("Custom Process Input", True, (0,0,0))
         self.screen.blit(title, (50,50))
 
-        # ─── Compute placeholder arrival as the smallest non-negative integer
+        # ─── Compute next‐arrival placeholder ─────────────────────────────────────────
         used = {int(p[0]) for p in self.custom_inputs}
-        next_arrival_val = 0
-        while next_arrival_val in used:
-            next_arrival_val += 1
-        next_arrival = str(next_arrival_val)
+        next_arr = 0
+        while next_arr in used:
+            next_arr += 1
 
-        # Burst & deadline placeholders remain “random”
-        next_burst    = "random"
-        next_deadline = "random" if self.selected_algo in ("RM", "DF") else ""
+        # placeholders
+        arrival_ph  = str(next_arr)
+        burst_ph    = "random"
+        period_ph   = "random"
+        deadline_ph = "random"
 
-        # Arrival Time label + box
-        arrival_label = self.font.load().render("Arrival Time:", True, (0,0,0))
-        self.screen.blit(arrival_label, (50,120))
-        self.arrival_box.draw(self.screen, placeholder=next_arrival)
+        # ─── Arrival box ──────────────────────────────────────────────────────────────
+        lbl = self.font.load().render("Arrival:", True, (0,0,0))
+        self.screen.blit(lbl, (50,120))
+        self.arrival_box.draw(self.screen, placeholder=arrival_ph)
 
-        # Burst Time label + box
-        burst_label = self.font.load().render("Burst Time:", True, (0,0,0))
-        self.screen.blit(burst_label, (200,120))
-        self.burst_box.draw(self.screen, placeholder=next_burst)
+        # ─── Burst box ───────────────────────────────────────────────────────────────
+        lbl = self.font.load().render("Burst:", True, (0,0,0))
+        self.screen.blit(lbl, (200,120))
+        self.burst_box.draw(self.screen, placeholder=burst_ph)
 
-        # Deadline label + box (for RM/DF)
+        # ─── Period box (RM & DF) ─────────────────────────────────────────────────────
         if self.selected_algo in ("RM", "DF"):
-            deadline_label = self.font.load().render("Deadline:", True, (0,0,0))
-            self.screen.blit(deadline_label, (350,120))
-            self.deadline_box.draw(self.screen, placeholder=next_deadline)
+            lbl = self.font.load().render("Period:", True, (0,0,0))
+            self.screen.blit(lbl, (350,120))
+            self.period_box.draw(self.screen, placeholder=period_ph)
 
-        # Add Process button
+        # ─── Deadline box (DF only) ───────────────────────────────────────────────────
+        if self.selected_algo == "DF":
+            lbl = self.font.load().render("Deadline:", True, (0,0,0))
+            self.screen.blit(lbl, (500,120))
+            self.deadline_box.draw(self.screen, placeholder=deadline_ph)
+
+        # ─── Add Process button ──────────────────────────────────────────────────────
         pygame.draw.rect(self.screen, (50,150,50), self.add_button["rect"])
-        add_text = self.font.load().render(self.add_button["label"], True, (255,255,255))
-        self.screen.blit(add_text, self.add_button["rect"].move(5,5))
+        add_txt = self.font.load().render(self.add_button["label"], True, (255,255,255))
+        self.screen.blit(add_txt, self.add_button["rect"].move(5,5))
 
-        # ─── Processes Added Table (truncate at 5 rows) ───────────────────────────────
+        # ─── Table of Added Processes ────────────────────────────────────────────────
         from algorithms.process import Process
-        table_x = 50
-        table_y = 220
-        cols    = ["#", "Arrival", "Burst", "Deadline"]
-        # convert custom_inputs tuples into Process objects
-        proc_objs = [
-            Process(idx+1, arrival, burst, deadline)
-            for idx,(arrival,burst,deadline) in enumerate(self.custom_inputs)
-        ]
-        # draw up to 5 rows, show "See all table" link if more
+        table_x, table_y = 50, 220
+        cols = ["#", "Arrival", "Burst"]
+        if self.selected_algo in ("RM", "DF"):
+            cols.append("Period")
+        if self.selected_algo == "DF":
+            cols.append("Deadline")
+
+        rows = []
+        for idx, (a,b,pr,dl) in enumerate(self.custom_inputs):
+            rows.append(Process(
+                pid=a,                # or idx+1 if you prefer
+                arrival_time=a,
+                burst_time=b,
+                period=pr if self.selected_algo in ("RM","DF") else None,
+                deadline=dl if self.selected_algo=="DF" else None
+            ))
+
         self.table.draw(
             screen    = self.screen,
             x         = table_x,
             y         = table_y,
             cols      = cols,
-            processes = proc_objs,
+            processes = rows,
             spacing   = 30,
             truncate  = 5
         )
 
-        # Bottom buttons
-        bottom_margin = 50
-        btn_y = self.height - bottom_margin - self.back_button["rect"].height
-        left_margin  = 50
-        right_margin = 50
+        # ─── Bottom Buttons ──────────────────────────────────────────────────────────
+        btn_y = self.height - 50 - self.back_button["rect"].height
 
-        # Back button (left)
-        self.back_button["rect"].topleft = (left_margin, btn_y)
+        # Back (left)
+        self.back_button["rect"].topleft = (50, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
         back_txt = self.font.load().render(self.back_button["label"], True, (255,255,255))
         self.screen.blit(back_txt, back_txt.get_rect(center=self.back_button["rect"].center))
 
-        # Start Simulation button (right, black bg)
-        w, h = self.start_sim_button["rect"].size
-        start_x = self.width - right_margin - w
-        self.start_sim_button["rect"].topleft = (start_x, btn_y)
+        # Start Simulation (right)
+        w,h = self.start_sim_button["rect"].size
+        sx  = self.width - 50 - w
+        self.start_sim_button["rect"].topleft = (sx, btn_y)
         pygame.draw.rect(self.screen, (0,0,0), self.start_sim_button["rect"])
         start_txt = self.font.load().render(self.start_sim_button["label"], True, (255,255,255))
         self.screen.blit(start_txt, start_txt.get_rect(center=self.start_sim_button["rect"].center))
 
 
-    def draw_results(self, processes, chart_top, chart_height, spacing_y = 20, show_metrics=True):
-        # 1) Table
+    def handle_input_event(self, event):
+        # Let "See all table" clicks go to the table
+        from algorithms.process import Process
+        proc_objs = [
+            Process(pid=idx+1,
+                    arrival_time=a,
+                    burst_time=b,
+                    deadline=dl if self.selected_algo=="DF" else None,
+                    period=pr if self.selected_algo in ("RM","DF") else None)
+            for idx,(a,b,pr,dl) in enumerate(self.custom_inputs)
+        ]
+        self.table.handle_event(
+            event,
+            cols=["#","Arrival","Burst"] + (["Period"] if self.selected_algo in ("RM","DF") else []) + (["Deadline"] if self.selected_algo=="DF" else []),
+            processes=proc_objs,
+            spacing=30
+        )
 
-        self.table.draw(self.screen, self.margin_x, chart_top+chart_height+50,
-                cols=["PID","Arrival","Burst","Deadline"],
-                processes=processes,
-                spacing=30)
+        # Boxes
+        self.arrival_box.handle_event(event)
+        self.burst_box.handle_event(event)
+        if self.selected_algo in ("RM","DF"):
+            self.period_box.handle_event(event)
+        if self.selected_algo == "DF":
+            self.deadline_box.handle_event(event)
 
-        cur_y = chart_top + chart_height + 50 + self.table.get_height() + spacing_y
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            pos = event.pos
+            # Add
+            if self.add_button["rect"].collidepoint(pos):
+                try:
+                    # arrival
+                    arrival = float(self.arrival_box.text) if self.arrival_box.text.strip() else \
+                              next(i for i in range(1000) if i not in {int(x[0]) for x in self.custom_inputs})
+                    # burst
+                    burst   = float(self.burst_box.text) if self.burst_box.text.strip() else random.randint(1,10)
+                    # period
+                    pr = None
+                    if self.selected_algo in ("RM","DF"):
+                        pr = float(self.period_box.text) if self.period_box.text.strip() else random.randint( burst+1, burst+10 )
+                    # deadline
+                    dl = None
+                    if self.selected_algo == "DF":
+                        dl = float(self.deadline_box.text) if self.deadline_box.text.strip() else arrival + burst + random.randint(0,5)
 
-        # 2) Avg metrics container
+                    self.custom_inputs.append((arrival, burst, pr, dl))
+                    for box in (self.arrival_box, self.burst_box, self.period_box, self.deadline_box):
+                        box.text = ""
+                        box.txt_surface = pygame.font.Font(None,24).render("",True,box.color)
+                except Exception:
+                    print("Invalid input!")
+
+            # Start Simulation
+            elif self.start_sim_button["rect"].collidepoint(pos):
+                self.processes = []
+                pid = 1
+                for a,b,pr,dl in self.custom_inputs:
+                    self.processes.append(Process(
+                        pid=pid,
+                        arrival_time=a,
+                        burst_time=b,
+                        deadline=dl if self.selected_algo=="DF" else None,
+                        period=pr if self.selected_algo in ("RM","DF") else None
+                    ))
+                    pid += 1
+                if not self.processes:
+                    print("No processes entered!")
+                    return
+                self.initialize_scheduler()
+                self.scheduler.schedule()
+                self.state = "simulation"
+
+            # Back
+            elif self.back_button["rect"].collidepoint(pos):
+                self.state = "menu"
+                self.custom_inputs.clear()
+
+    def draw_results(self, processes, chart_top, chart_height, spacing_y=20, show_metrics=True):
+        # Determine columns based on selected algorithm
+        if self.selected_algo == "RM":
+            cols = ["PID", "Arrival", "Burst", "Period"]
+        elif self.selected_algo == "DF":
+            cols = ["PID", "Arrival", "Burst", "Period", "Deadline"]
+        else:
+            cols = ["PID", "Arrival", "Burst"]
+
+        # 1) Table (truncate to 5 rows)
+        table_y = chart_top + chart_height + 50
+        self.table.draw(
+            screen    = self.screen,
+            x         = self.margin_x,
+            y         = table_y,
+            cols      = cols,
+            processes = processes,
+            spacing   = 30,
+            truncate  = 5
+        )
+
+        # 2) Metrics below the table
+        cur_y = table_y + self.table.get_height() + spacing_y
         if show_metrics:
             ctr = Container(self.font, direction="col", spacing=5)
             ctr.add_text(f"Avg waiting time: {self.scheduler.average_waiting_time():.2f}")

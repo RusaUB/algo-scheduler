@@ -1,67 +1,91 @@
-
 from algorithms.scheduler import Scheduler
 
 class DeadlineFirstScheduler(Scheduler):
     """
-    Deadline First (DF) scheduling using preemptive Earliest Deadline First (EDF).
-    At each time unit, the process with the earliest deadline among those available is selected.
+    Earliest Deadline First (EDF): preemptive, picks the ready process
+    with the earliest absolute deadline. Now *requires* that every
+    Process has a non-None `.period` field.
     """
     def schedule(self):
+        # ── Enforce that every process has a period defined ────────────────────
+        for p in self.processes:
+            if p.period is None:
+                raise ValueError(f"EDF scheduling requires a period for Process {p.pid}")
+
         if not self.processes:
             return
-        current_time = min(p.arrival_time for p in self.processes)
-        ready_queue = []
-        unfinished = {p.pid: p for p in self.processes}
-        current_process = None
+
+        current_time  = min(p.arrival_time for p in self.processes)
+        ready_queue   = []
+        unfinished    = {p.pid: p for p in self.processes}
+        current_proc  = None
         segment_start = current_time
 
         while unfinished:
+            # enqueue newly arrived tasks
             for p in self.processes:
-                if p.arrival_time <= current_time and p not in ready_queue and p.pid in unfinished:
+                if (p.arrival_time <= current_time
+                    and p.pid in unfinished
+                    and p not in ready_queue):
                     ready_queue.append(p)
+
             if not ready_queue:
-                next_arrival = min((p.arrival_time for p in self.processes if p.pid in unfinished), default=current_time)
-                if current_process is not None:
-                    self.timeline.append((current_process.pid, segment_start, next_arrival))
-                    current_process = None
-                current_time = next_arrival
-                segment_start = current_time
+                # idle until next arrival
+                next_arr = min(
+                    (p.arrival_time for p in self.processes if p.pid in unfinished),
+                    default=current_time
+                )
+                if current_proc:
+                    self.timeline.append((current_proc.pid, segment_start, next_arr))
+                    current_proc = None
+                current_time  = next_arr
+                segment_start = next_arr
                 continue
 
-            candidate = min(ready_queue, key=lambda p: p.deadline)
-            if current_process is None or candidate.pid != current_process.pid:
-                if current_process is not None:
-                    self.timeline.append((current_process.pid, segment_start, current_time))
-                current_process = candidate
+            # pick by earliest deadline
+            proc = min(ready_queue,
+                       key=lambda p: p.deadline if p.deadline is not None else float('inf'))
+
+            # on context-switch, close old segment
+            if current_proc is None or proc.pid != current_proc.pid:
+                if current_proc:
+                    self.timeline.append((current_proc.pid, segment_start, current_time))
+                current_proc  = proc
                 segment_start = current_time
 
-            current_process.remaining_time -= 1
+            # execute one time unit
+            current_proc.remaining_time -= 1
             current_time += 1
-            if current_process.remaining_time == 0:
-                self.timeline.append((current_process.pid, segment_start, current_time))
-                ready_queue.remove(current_process)
-                del unfinished[current_process.pid]
-                current_process = None
+
+            # if it finishes, close its segment
+            if current_proc.remaining_time == 0:
+                self.timeline.append((current_proc.pid, segment_start, current_time))
+                ready_queue.remove(current_proc)
+                del unfinished[current_proc.pid]
+                current_proc  = None
                 segment_start = current_time
 
+        # coalesce contiguous segments
         self._merge_timeline_segments()
+
+        # record final metrics
         for p in self.processes:
-            segments = [seg for seg in self.timeline if seg[0] == p.pid]
-            if segments:
-                p.completion_time = segments[-1][2]
+            segs = [s for s in self.timeline if s[0] == p.pid]
+            if segs:
+                p.completion_time = segs[-1][2]
                 p.turnaround_time = p.completion_time - p.arrival_time
-                p.waiting_time = p.turnaround_time - p.burst_time
+                p.waiting_time    = p.turnaround_time - p.burst_time
 
     def _merge_timeline_segments(self):
         merged = []
         if not self.timeline:
             return
-        current = self.timeline[0]
+        curr = self.timeline[0]
         for seg in self.timeline[1:]:
-            if seg[0] == current[0] and seg[1] == current[2]:
-                current = (current[0], current[1], seg[2])
+            if seg[0] == curr[0] and seg[1] == curr[2]:
+                curr = (curr[0], curr[1], seg[2])
             else:
-                merged.append(current)
-                current = seg
-        merged.append(current)
+                merged.append(curr)
+                curr = seg
+        merged.append(curr)
         self.timeline = merged

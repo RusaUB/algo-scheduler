@@ -12,72 +12,85 @@ class Table:
 
     def draw(self, screen, x, y, cols, processes, spacing=30, truncate=5):
         """
-        Draws a table at (x,y). If len(processes) > truncate, only the first
-        `truncate` rows are shown, and a "See all table" link is drawn below.
-        """
-        # remember for get_height/get_width
-        self._last_rows     = min(len(processes), truncate) if truncate else len(processes)
-        self._last_spacing  = spacing
-        self._last_margin_x = x
+        Render a table of processes at (x, y).
 
-        table_w = self.screen_width - 2*x
+        Parameters:
+            screen    – Pygame surface
+            x, y      – top-left position
+            cols      – list of column headers, e.g. ["PID", "Arrival", "Burst", "Period", "Deadline"]
+            processes – list of Process objects
+            spacing   – row height in pixels
+            truncate  – if set and len(processes) > truncate, show only the first `truncate` rows + a "See all table" link
+        """
+        # Determine rows to show
+        rows_to_show = processes
+        if truncate and len(processes) > truncate:
+            rows_to_show = processes[:truncate]
+        self._last_rows      = len(rows_to_show)
+        self._last_spacing   = spacing
+        self._last_margin_x  = x
+
+        table_w = self.screen_width - 2 * x
         n_cols  = len(cols)
         col_w   = table_w / n_cols
 
-        # Header
+        # Header row
         hdr_rect = pygame.Rect(x, y, table_w, spacing)
         pygame.draw.rect(screen, (200,200,200), hdr_rect)
-        for i,h in enumerate(cols):
-            cx = x + col_w*i + col_w/2
-            cy = y + spacing/2
-            txt = self.font.load().render(h, True, (0,0,0))
-            screen.blit(txt, txt.get_rect(center=(cx,cy)))
+        for i, heading in enumerate(cols):
+            cx = x + col_w * i + col_w / 2
+            cy = y + spacing / 2
+            txt = self.font.load().render(heading, True, (0,0,0))
+            screen.blit(txt, txt.get_rect(center=(cx, cy)))
             pygame.draw.line(screen, (0,0,0),
-                             (x + col_w*(i+1), y),
-                             (x + col_w*(i+1), y+spacing))
+                             (x + col_w * (i+1), y),
+                             (x + col_w * (i+1), y + spacing))
 
-        # Decide which processes to show
-        if truncate and len(processes) > truncate:
-            to_draw = processes[:truncate]
-        else:
-            to_draw = processes
-
-        # Rows
-        for idx, p in enumerate(to_draw):
-            ry = y + spacing*(idx+1)
-            bg = (230,230,230) if idx%2==0 else (245,245,245)
+        # Data rows
+        for idx, p in enumerate(rows_to_show):
+            ry = y + spacing * (idx + 1)
+            bg = (230,230,230) if idx % 2 == 0 else (245,245,245)
             pygame.draw.rect(screen, bg, (x, ry, table_w, spacing))
-            vals = [
-                str(p.pid),
-                f"{p.arrival_time:.1f}",
-                f"{p.burst_time:.1f}",
-                f"{p.deadline:.1f}" if p.deadline is not None else "-"
-            ]
-            for i,val in enumerate(vals):
-                cx = x + col_w*i + col_w/2
-                cy = ry + spacing/2
+
+            vals = []
+            for heading in cols:
+                key = heading.strip().lower()
+                if key in ("#", "pid"):
+                    vals.append(str(p.pid))
+                elif key in ("arrival", "arrival time"):
+                    vals.append(f"{p.arrival_time:.1f}")
+                elif key in ("burst", "burst time"):
+                    vals.append(f"{p.burst_time:.1f}")
+                elif key == "period":
+                    vals.append(f"{p.period:.1f}" if p.period is not None else "-")
+                elif key == "deadline":
+                    vals.append(f"{p.deadline:.1f}" if p.deadline is not None else "-")
+                else:
+                    vals.append("-")
+
+            for i, val in enumerate(vals):
+                cx = x + col_w * i + col_w / 2
+                cy = ry + spacing / 2
                 txt = self.font.load().render(val, True, (0,0,0))
-                screen.blit(txt, txt.get_rect(center=(cx,cy)))
+                screen.blit(txt, txt.get_rect(center=(cx, cy)))
                 pygame.draw.line(screen, (180,180,180),
-                                 (x + col_w*(i+1), ry),
-                                 (x + col_w*(i+1), ry+spacing))
+                                 (x + col_w * (i+1), ry),
+                                 (x + col_w * (i+1), ry + spacing))
             # bottom border
             pygame.draw.line(screen, (180,180,180),
-                             (x, ry+spacing),
-                             (x+table_w, ry+spacing))
+                             (x, ry + spacing),
+                             (x + table_w, ry + spacing))
 
         # "See all table" link
         if truncate and len(processes) > truncate:
             link_txt = self.font.load().render("See all table", True, (0,0,255))
-            link_x   = x + table_w/2 - link_txt.get_width()/2
-            link_y   = y + spacing*(truncate+1) + 10
+            link_x   = x + (table_w - link_txt.get_width()) / 2
+            link_y   = y + spacing * (truncate + 1) + 10
             self.see_all_rect = link_txt.get_rect(topleft=(link_x, link_y))
             screen.blit(link_txt, self.see_all_rect)
         else:
             self.see_all_rect = None
-
     def get_height(self):
-        """Header + rows at last spacing, plus link space if any."""
         h = (1 + self._last_rows) * self._last_spacing
         if self.see_all_rect:
             h += 10 + self.see_all_rect.height
