@@ -1,6 +1,6 @@
 # Scheduling Simulator
 
-A Python-based scheduling simulator supporting multiple algorithms: FCFS, SJN, Round Robin, Rate Monotonic, and Earliest Deadline First (EDF). Offers both command-line and Pygame graphical interfaces.
+A Python-based scheduling simulator supporting multiple algorithms: FCFS, SJN, Round Robin, Rate Monotonic, and Earliest Deadline First (EDF). Offers Pygame graphical interface.
 
 ---
 
