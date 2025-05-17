@@ -293,6 +293,11 @@ class SchedulerApp:
 
             # — Add Process —
             if self.add_button["rect"].collidepoint(pos):
+                # enforce maximum
+                if len(self.custom_inputs) >= self.MAX_PROCESSES:
+                    # optionally flash a warning or ignore
+                    print(f"Cannot add more than {self.MAX_PROCESSES} processes")
+                    return
                 try:
                     # 1) arrival
                     if self.arrival_box.text.strip():
