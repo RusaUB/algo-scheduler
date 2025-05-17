@@ -64,21 +64,13 @@ class Scheduler(abc.ABC):
         plt.show()
 
     def average_waiting_time(self):
-        """
-        Returns the average waiting time across all processes
-        (i.e. time spent in ready queue).
-        """
-        if not self.processes:
-            return 0.0
-        total_wait = sum(p.waiting_time for p in self.processes)
+        # Treat any None as 0, so sum never sees a None
+        total_wait = sum((p.waiting_time if p.waiting_time is not None else 0)
+                         for p in self.processes)
         return total_wait / len(self.processes)
 
     def average_turnaround_time(self):
-        """
-        Returns the average turnaround time across all processes
-        (i.e. completion_time - arrival_time).
-        """
-        if not self.processes:
-            return 0.0
-        total_tat = sum(p.turnaround_time for p in self.processes)
+        # Same for turnaround
+        total_tat = sum((p.turnaround_time if p.turnaround_time is not None else 0)
+                        for p in self.processes)
         return total_tat / len(self.processes)
