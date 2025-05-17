@@ -58,9 +58,6 @@ def generate_random_processes(
 
     return processes
 
-
-
-
 def display_process_info(processes):
     """Print detailed information for each process."""
     for p in processes:

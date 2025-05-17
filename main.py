@@ -46,9 +46,9 @@ class TextInputBox:
                 # only accept digit characters
                 if ch.isdigit():
                     new_text = self.text + ch
-                    # enforce integer ≤ 10
+                    # enforce integer ≤ 20
                     try:
-                        if 0 <= int(new_text) <= 10:
+                        if 0 <= int(new_text) <= 20:
                             self.text = new_text
                     except ValueError:
                         pass
@@ -94,12 +94,14 @@ class SchedulerApp:
         self.selected_algo = None
         self.scheduler = None
         self.processes = []
+
         # For custom input using separate boxes.
         self.custom_inputs = []  # list of (arrival, burst, deadline)
         self.arrival_box = TextInputBox(50, 150, 100, 32)
         self.burst_box = TextInputBox(200, 150, 100, 32)
         self.deadline_box = TextInputBox(350, 150, 100, 32)
         self.period_box   = TextInputBox(350, 150, 100, 32)
+
         # For replay animation.
         self.replaying = False
         self.replay_start_time = None
@@ -109,6 +111,8 @@ class SchedulerApp:
         self.margin_x = 50
 
         self.MAX_PROCESSES = 8
+
+        self.selected_algo_display = None
 
         # Parameters
         titles      = [
@@ -142,6 +146,7 @@ class SchedulerApp:
                     bg_color=color
                 )
             )
+        
 
 
         self.algo_map = {
@@ -166,6 +171,12 @@ class SchedulerApp:
         self.back_button = {"label": "Back to Menu", "rect": pygame.Rect(200, 600, 150, 40)}
 
         self.process_colors = {}
+
+        self.comparison_zoomed = False
+        self.zoom_button = {
+            "rect": pygame.Rect(self.width-80-self.margin_x, 50, 80, 30)
+        }
+ 
 
     def run(self):
         running = True
@@ -200,17 +211,22 @@ class SchedulerApp:
         sys.exit()
 
     def handle_comparison_event(self, event):
-        self.table.handle_event(
-            event,
-            cols=["PID", "Arrival", "Burst", "Deadline"],
-            processes=self.processes,
-            spacing=30
-        )
-
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.zoom_button["rect"].collidepoint(event.pos):
+                self.comparison_zoomed = not self.comparison_zoomed
+                return
+
+            # existing “see all table” handler
+            self.table.handle_event(
+                event,
+                cols=["PID","Arrival","Burst","Deadline"],
+                processes=self.processes,
+                spacing=30
+            )
+
+            # back button
             if self.back_button["rect"].collidepoint(event.pos):
                 self.state = "simulation"
-
 
 
     def handle_menu_event(self, event):
@@ -220,6 +236,7 @@ class SchedulerApp:
             for card in self.algo_buttons:
                 if card.rect.collidepoint(pos):
                     label = card.title
+                    self.selected_algo_display = card.title  
                     self.selected_algo = self.algo_map[label]
                     if self.process_mode == "random":
                         # always generate both period & deadline,
@@ -375,26 +392,24 @@ class SchedulerApp:
                 self.custom_inputs = []
                 self.replaying = False
 
-                
     def draw_comparison(self):
         # Clear background
         self.screen.fill((240,240,240))
 
         # Title
-        title_surf = self.font.load().render(
-            "Comparison: Avg Waiting & Turnaround Times", True, (0,0,0)
-        )
-        self.screen.blit(title_surf, (50, 10))
+        title = self.font.load().render("Comparison: Avg Waiting & Turnaround Times", True, (0,0,0))
+        self.screen.blit(title, (50, 10))
 
-        # ─── Process Table (with truncation) ───────────────────────────────────────────
-        table_x, table_y = 50, 50
-        cols    = ["PID", "Arrival", "Burst"]
-        # always show period/deadline columns if any process has them
-        if any(p.period is not None for p in self.processes):
-            cols.append("Period")
-        if any(p.deadline is not None for p in self.processes):
-            cols.append("Deadline")
+        # ─── Zoom toggle ─────────────────────────────────────────────────────────
+        lbl = "De-zoom" if self.comparison_zoomed else "Zoom"
+        pygame.draw.rect(self.screen, (100,100,100), self.zoom_button["rect"])
+        txt = self.font.load().render(lbl, True, (255,255,255))
+        self.screen.blit(txt, txt.get_rect(center=self.zoom_button["rect"].center))
 
+
+        # ─── Truncated Process Table ──────────────────────────────────────────────
+        table_x, table_y = 50, 100
+        cols    = ["PID", "Arrival", "Burst", "Deadline"]
         self.table.draw(
             screen    = self.screen,
             x         = table_x,
@@ -406,14 +421,8 @@ class SchedulerApp:
         )
         table_h = self.table.get_height()
 
-        # chart area
-        chart_x = 50
-        chart_y = table_y + table_h + 80
-        chart_w = self.width - 100
-        chart_h = 200
-
-        # prepare schedulers to compare
-        labels = ["FCFS", "SJN", "RR", "RM", "DF"]
+        # ─── Compute metrics ──────────────────────────────────────────────────────
+        labels = ["FCFS","SJN","RR","RM","DF"]
         ctors  = [
             FCFS_Scheduler,
             ShortestJobNextScheduler,
@@ -423,41 +432,35 @@ class SchedulerApp:
         ]
         wait_times = []
         turn_times = []
-
-        for lbl, ctor in zip(labels, ctors):
+        for ctor in ctors:
             sched = ctor()
-            for orig in self.processes:
-                # build a fresh Process instance per algorithm
-                if lbl == "RM":
-                    # RM needs period, ignores deadline
-                    sched.add_process(Process(
-                        pid          = orig.pid,
-                        arrival_time = orig.arrival_time,
-                        burst_time   = orig.burst_time,
-                        deadline     = None,
-                        period       = orig.period
-                    ))
-                elif lbl == "DF":
-                    # EDF needs both period and deadline
-                    sched.add_process(Process(
-                        pid          = orig.pid,
-                        arrival_time = orig.arrival_time,
-                        burst_time   = orig.burst_time,
-                        deadline     = orig.deadline,
-                        period       = orig.period
-                    ))
-                else:
-                    # FCFS, SJN, RR ignore both
-                    sched.add_process(Process(
-                        pid          = orig.pid,
-                        arrival_time = orig.arrival_time,
-                        burst_time   = orig.burst_time
-                    ))
+            for p in self.processes:
+                sched.add_process(Process(
+                    pid          = p.pid,
+                    arrival_time = p.arrival_time,
+                    burst_time   = p.burst_time,
+                    period       = getattr(p, "period", None),
+                    deadline     = getattr(p, "deadline", None)
+                ))
             sched.schedule()
             wait_times.append(sched.average_waiting_time())
             turn_times.append(sched.average_turnaround_time())
 
-        # draw the bar chart
+        # full vs zoomed scale
+        full_max = max(max(wait_times), max(turn_times), 1)
+        zoom_max = max(
+            turn_times[ labels.index("FCFS") ],
+            turn_times[ labels.index("SJN") ],
+            turn_times[ labels.index("RR") ],
+            1
+        )
+
+        # ─── Draw bar chart ────────────────────────────────────────────────────────
+        chart_x      = 50
+        chart_y      = table_y + table_h + 50
+        chart_w      = self.width - 100
+        chart_h      = 200
+
         bc = BarChart(
             labels      = labels,
             wait_times  = wait_times,
@@ -467,17 +470,18 @@ class SchedulerApp:
             width       = chart_w,
             height      = chart_h,
             bar_colors  = ((254,90,90),(90,180,254)),
-            marker_count= 5
+            marker_count= 5,
+           zoomed      = self.comparison_zoomed
         )
         bc.draw(self.screen, self.font)
 
-        # ─── Back button ───────────────────────────────────────────────────────────────
-        left_margin = 50
-        btn_y       = self.back_button["rect"].y
-        self.back_button["rect"].topleft = (left_margin, btn_y)
+        # ─── Back button ───────────────────────────────────────────────────────────
+        btn_y = self.back_button["rect"].y
+        self.back_button["rect"].topleft = (50, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
-        back_txt = self.font.load().render(self.back_button["label"], True, (255,255,255))
-        self.screen.blit(back_txt, back_txt.get_rect(center=self.back_button["rect"].center))
+        bl = self.font.load().render(self.back_button["label"], True, (255,255,255))
+        self.screen.blit(bl, bl.get_rect(center=self.back_button["rect"].center))
+
 
 
     def draw_menu(self):
@@ -640,8 +644,10 @@ class SchedulerApp:
 
     
     def draw_simulation(self):
-        title = self.font.load().render("Simulation Result", True, (0,0,0))
-        self.screen.blit(title, (50,10))
+        display = self.selected_algo_display or ""
+        title_surf = self.font.load(size="md", type="Black") \
+                        .render(f"Simulation Result{f' – {display}' if display else ''}", True, (0,0,0))
+        self.screen.blit(title_surf, (50,10))
         if not self.scheduler or not self.scheduler.timeline:
             return
 
