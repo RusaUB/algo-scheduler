@@ -200,7 +200,6 @@ class SchedulerApp:
         sys.exit()
 
     def handle_comparison_event(self, event):
-        # Let the table detect any "See all table" clicks first
         self.table.handle_event(
             event,
             cols=["PID", "Arrival", "Burst", "Deadline"],
@@ -208,7 +207,6 @@ class SchedulerApp:
             spacing=30
         )
 
-        # Now handle the Back button
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.back_button["rect"].collidepoint(event.pos):
                 self.state = "simulation"
@@ -224,24 +222,24 @@ class SchedulerApp:
                     label = card.title
                     self.selected_algo = self.algo_map[label]
                     if self.process_mode == "random":
-                        include_period   = self.selected_algo in ("RM","DF")
-                        include_deadline = self.selected_algo == "DF"
+                        # always generate both period & deadline,
+                        # so later comparison can hand them off to RM/EDF as needed
                         self.processes = generate_random_processes(
-                           5,
-                            include_period=include_period,
-                            include_deadline=include_deadline
+                            5,
+                            include_period=True,
+                            include_deadline=True
                         )
                         self.initialize_scheduler()
                         self.scheduler.schedule()
                         self.state = "simulation"
                     else:
-                        # No need to reset selected_algo again—just switch to custom input mode
+                        # custom‐input branch
                         self.custom_inputs = []
                         self.processes = []
                         self.state = "input"
-                    return  # good practice to bail out once handled
+                    return
 
-            # Mode buttons (same as before)
+            # Mode buttons
             for btn in self.mode_buttons:
                 if btn["rect"].collidepoint(pos):
                     self.process_mode = btn["mode"]
@@ -406,11 +404,14 @@ class SchedulerApp:
         self.screen.blit(title_surf, (50, 10))
 
         # ─── Process Table (with truncation) ───────────────────────────────────────────
-        table_x = 50
-        table_y = 50
-        cols    = ["PID", "Arrival", "Burst", "Deadline"]
-        truncate_count = 5
-        # draw up to `truncate_count` rows, with "See all table" if more
+        table_x, table_y = 50, 50
+        cols    = ["PID", "Arrival", "Burst"]
+        # always show period/deadline columns if any process has them
+        if any(p.period is not None for p in self.processes):
+            cols.append("Period")
+        if any(p.deadline is not None for p in self.processes):
+            cols.append("Deadline")
+
         self.table.draw(
             screen    = self.screen,
             x         = table_x,
@@ -418,15 +419,17 @@ class SchedulerApp:
             cols      = cols,
             processes = self.processes,
             spacing   = 30,
-            truncate  = truncate_count
+            truncate  = 5
         )
         table_h = self.table.get_height()
 
-        chart_x      = 50
-        chart_y      = table_y + table_h + 80
-        chart_w      = self.width - 100
-        chart_h      = 200
+        # chart area
+        chart_x = 50
+        chart_y = table_y + table_h + 80
+        chart_w = self.width - 100
+        chart_h = 200
 
+        # prepare schedulers to compare
         labels = ["FCFS", "SJN", "RR", "RM", "DF"]
         ctors  = [
             FCFS_Scheduler,
@@ -437,22 +440,43 @@ class SchedulerApp:
         ]
         wait_times = []
         turn_times = []
+
         for lbl, ctor in zip(labels, ctors):
             sched = ctor()
             for orig in self.processes:
-                sched.add_process(Process(
-                    pid          = orig.pid,
-                    arrival_time = orig.arrival_time,
-                    burst_time   = orig.burst_time,
-                    deadline     = orig.deadline if self.selected_algo=="DF" else None,
-                    period       = orig.deadline if self.selected_algo in ("RM","DF") else None
-                ))
+                # build a fresh Process instance per algorithm
+                if lbl == "RM":
+                    # RM needs period, ignores deadline
+                    sched.add_process(Process(
+                        pid          = orig.pid,
+                        arrival_time = orig.arrival_time,
+                        burst_time   = orig.burst_time,
+                        deadline     = None,
+                        period       = orig.period
+                    ))
+                elif lbl == "DF":
+                    # EDF needs both period and deadline
+                    sched.add_process(Process(
+                        pid          = orig.pid,
+                        arrival_time = orig.arrival_time,
+                        burst_time   = orig.burst_time,
+                        deadline     = orig.deadline,
+                        period       = orig.period
+                    ))
+                else:
+                    # FCFS, SJN, RR ignore both
+                    sched.add_process(Process(
+                        pid          = orig.pid,
+                        arrival_time = orig.arrival_time,
+                        burst_time   = orig.burst_time
+                    ))
             sched.schedule()
             wait_times.append(sched.average_waiting_time())
             turn_times.append(sched.average_turnaround_time())
 
+        # draw the bar chart
         bc = BarChart(
-            labels=labels,
+            labels      = labels,
             wait_times  = wait_times,
             turn_times  = turn_times,
             x           = chart_x,
@@ -460,14 +484,13 @@ class SchedulerApp:
             width       = chart_w,
             height      = chart_h,
             bar_colors  = ((254,90,90),(90,180,254)),
-            marker_count= 5   # or 0 if you don’t want grid/ticks
+            marker_count= 5
         )
-
         bc.draw(self.screen, self.font)
 
         # ─── Back button ───────────────────────────────────────────────────────────────
         left_margin = 50
-        btn_y = self.back_button["rect"].y
+        btn_y       = self.back_button["rect"].y
         self.back_button["rect"].topleft = (left_margin, btn_y)
         pygame.draw.rect(self.screen, (100,100,100), self.back_button["rect"])
         back_txt = self.font.load().render(self.back_button["label"], True, (255,255,255))

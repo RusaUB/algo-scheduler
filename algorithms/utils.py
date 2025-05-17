@@ -3,51 +3,53 @@ from algorithms.process import Process
 
 def generate_random_processes(
     num_processes,
-    burst_range=(1, 5),
+    arrival_range=(0, 10),
+    burst_range=(1, 10),
     include_period=False,
     include_deadline=False
 ):
     """
-    Generate a list of processes with strictly sequential arrival times starting at 0.
+    Generate a list of processes with unique arrival times
+    and optional period/deadline fields.
 
-    Arrival times: 0, 1, 2, ..., num_processes-1.
-    Burst times: random in burst_range.
-    Periods (if used): burst_time + random offset [1,10].
-    Deadlines (if used): unique integers between arrival+burst and 10.
+    Parameters:
+      num_processes    – how many processes to create
+      arrival_range    – (min_arrival, max_arrival)
+      burst_range      – (min_burst, max_burst)
+      include_period   – if True, assign each process a random period > burst_time
+      include_deadline – if True, assign each process an absolute deadline
+
+    Returns:
+      List[Process] each with .arrival_time, .burst_time,
+      and optionally .period and .deadline.
     """
+    min_a, max_a = arrival_range
+    span = max_a - min_a + 1
+    if num_processes > span:
+        raise ValueError(
+            f"Cannot generate {num_processes} unique arrival times "
+            f"in range {arrival_range}"
+        )
+
+    # pick unique arrival times
+    arrival_times = random.sample(range(min_a, max_a + 1), num_processes)
     processes = []
-    seen_deadlines = set()
 
-    for i in range(num_processes):
-        arrival_time = i
-        burst_time   = random.randint(*burst_range)
+    for i, arrival_time in enumerate(sorted(arrival_times), start=1):
+        burst_time = random.randint(*burst_range)
 
-        # optional period
         period = None
         if include_period:
+            # period must exceed burst_time
             period = burst_time + random.randint(1, 10)
 
-        # optional unique deadline capped at 10
         deadline = None
         if include_deadline:
-            # earliest possible deadline
-            earliest = arrival_time + burst_time
-            if earliest > 10:
-                earliest = 10
-
-            # build candidate pool [earliest..10] minus already used
-            pool = [d for d in range(earliest, 11) if d not in seen_deadlines]
-            if not pool:
-                # if exhausted, just pick ‘10’ (we can no longer guarantee uniqueness)
-                cand = 10
-            else:
-                cand = random.choice(pool)
-
-            deadline = cand
-            seen_deadlines.add(deadline)
+            # absolute deadline no more than arrival + burst + 5
+            deadline = arrival_time + burst_time + random.randint(0, 5)
 
         processes.append(Process(
-            pid=           i+1,
+            pid=           i,
             arrival_time=  arrival_time,
             burst_time=    burst_time,
             deadline=      deadline,
