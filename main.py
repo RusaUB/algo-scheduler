@@ -18,48 +18,60 @@ from components.table import Table
 from components.container import Container
 
 class TextInputBox:
+    MAX_LEN = 2  
+
     def __init__(self, x, y, w, h, text=''):
         self.rect = pygame.Rect(x, y, w, h)
         self.color_inactive = pygame.Color('lightskyblue3')
-        self.color_active = pygame.Color('dodgerblue2')
+        self.color_active   = pygame.Color('dodgerblue2')
         self.color = self.color_inactive
-        self.text = text
+        self.text  = text
         self.txt_surface = pygame.font.Font(None, 24).render(text, True, self.color)
         self.active = False
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.rect.collidepoint(event.pos):
-                self.active = True
-            else:
-                self.active = False
+            # Toggle active state if clicked
+            self.active = self.rect.collidepoint(event.pos)
             self.color = self.color_active if self.active else self.color_inactive
-        elif event.type == pygame.KEYDOWN:
-            if self.active:
-                if event.key == pygame.K_RETURN:
-                    text = self.text
-                    self.text = ''
-                    self.txt_surface = pygame.font.Font(None, 24).render(self.text, True, self.color)
-                    return text
-                elif event.key == pygame.K_BACKSPACE:
-                    self.text = self.text[:-1]
-                else:
-                    self.text += event.unicode
-                self.txt_surface = pygame.font.Font(None, 24).render(self.text, True, self.color)
+
+        elif event.type == pygame.KEYDOWN and self.active:
+            if event.key == pygame.K_RETURN:
+                val = self.text
+                self.text = ''
+                return val
+
+            elif event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+
+            else:
+                ch = event.unicode
+                # allow digits and at most one dot
+                if len(self.text) < self.MAX_LEN and (ch.isdigit() or (ch == '.' and '.' not in self.text)):
+                    self.text += ch
+
+            # re-render
+            self.txt_surface = pygame.font.Font(None, 24).render(self.text, True, self.color)
+
         return None
 
     def draw(self, screen, placeholder=''):
-        # decide what to render: real text or placeholder
+        # decide what to render
         if self.text:
             disp = self.text
             col  = self.color
         else:
             disp = placeholder
-            col  = pygame.Color('grey')   # light grey for placeholder
+            col  = pygame.Color('grey')
 
-        # re-render surface with chosen color
+        # render
         self.txt_surface = pygame.font.Font(None, 24).render(disp, True, col)
-        screen.blit(self.txt_surface, (self.rect.x+5, self.rect.y+5))
+
+        # center the text surface in the box
+        txt_rect = self.txt_surface.get_rect(center=self.rect.center)
+        screen.blit(self.txt_surface, txt_rect)
+
+        # draw border
         pygame.draw.rect(screen, self.color, self.rect, 2)
 
 class SchedulerApp:
