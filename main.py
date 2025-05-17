@@ -18,8 +18,6 @@ from components.table import Table
 from components.container import Container
 
 class TextInputBox:
-    MAX_LEN = 2  
-
     def __init__(self, x, y, w, h, text=''):
         self.rect = pygame.Rect(x, y, w, h)
         self.color_inactive = pygame.Color('lightskyblue3')
@@ -31,9 +29,8 @@ class TextInputBox:
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            # Toggle active state if clicked
             self.active = self.rect.collidepoint(event.pos)
-            self.color = self.color_active if self.active else self.color_inactive
+            self.color  = self.color_active if self.active else self.color_inactive
 
         elif event.type == pygame.KEYDOWN and self.active:
             if event.key == pygame.K_RETURN:
@@ -46,9 +43,15 @@ class TextInputBox:
 
             else:
                 ch = event.unicode
-                # allow digits and at most one dot
-                if len(self.text) < self.MAX_LEN and (ch.isdigit() or (ch == '.' and '.' not in self.text)):
-                    self.text += ch
+                # only accept digit characters
+                if ch.isdigit():
+                    new_text = self.text + ch
+                    # enforce integer ≤ 10
+                    try:
+                        if 0 <= int(new_text) <= 10:
+                            self.text = new_text
+                    except ValueError:
+                        pass
 
             # re-render
             self.txt_surface = pygame.font.Font(None, 24).render(self.text, True, self.color)
@@ -64,14 +67,11 @@ class TextInputBox:
             disp = placeholder
             col  = pygame.Color('grey')
 
-        # render
+        # render centered in box
         self.txt_surface = pygame.font.Font(None, 24).render(disp, True, col)
-
-        # center the text surface in the box
         txt_rect = self.txt_surface.get_rect(center=self.rect.center)
         screen.blit(self.txt_surface, txt_rect)
 
-        # draw border
         pygame.draw.rect(screen, self.color, self.rect, 2)
 
 class SchedulerApp:
@@ -245,7 +245,6 @@ class SchedulerApp:
                     self.process_mode = btn["mode"]
 
     def handle_input_event(self, event):
-        # Let the table catch any “See all…” clicks first
         from algorithms.process import Process
         proc_objs = [
             Process(
