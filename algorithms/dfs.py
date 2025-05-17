@@ -1,91 +1,82 @@
+from math import gcd
+from functools import reduce
+from copy import deepcopy
 from algorithms.scheduler import Scheduler
 
 class DeadlineFirstScheduler(Scheduler):
     """
-    Earliest Deadline First (EDF): preemptive, picks the ready process
-    with the earliest absolute deadline. Now *requires* that every
-    Process has a non-None `.period` field.
+    Preemptive Earliest-Deadline-First over the hyperperiod.
+    Each Process must have:
+      - .period    (int)
+      - .burst_time (capacity)
+      - .deadline  (relative, int)
     """
-    def schedule(self):
-        # ── Enforce that every process has a period defined ────────────────────
-        for p in self.processes:
-            if p.period is None:
-                raise ValueError(f"EDF scheduling requires a period for Process {p.pid}")
 
+    def schedule(self):
         if not self.processes:
             return
 
-        current_time  = min(p.arrival_time for p in self.processes)
-        ready_queue   = []
-        unfinished    = {p.pid: p for p in self.processes}
-        current_proc  = None
-        segment_start = current_time
+        # 1) Validate
+        for p in self.processes:
+            if p.period is None or p.deadline is None:
+                raise ValueError(f"EDF requires both period and deadline for P{p.pid}")
 
-        while unfinished:
-            # enqueue newly arrived tasks
-            for p in self.processes:
-                if (p.arrival_time <= current_time
-                    and p.pid in unfinished
-                    and p not in ready_queue):
-                    ready_queue.append(p)
+        # 2) Compute hyperperiod = lcm of all periods
+        periods = [int(p.period) for p in self.processes]
+        hyper = reduce(lambda a, b: a * b // gcd(a, b), periods)
 
-            if not ready_queue:
-                # idle until next arrival
-                next_arr = min(
-                    (p.arrival_time for p in self.processes if p.pid in unfinished),
-                    default=current_time
-                )
-                if current_proc:
-                    self.timeline.append((current_proc.pid, segment_start, next_arr))
-                    current_proc = None
-                current_time  = next_arr
-                segment_start = next_arr
-                continue
+        # 3) Initialize runtime state
+        RT = {}
+        for p in self.processes:
+            RT[p.pid] = {
+                'orig_period'   : int(p.period),
+                'orig_capacity' : int(p.burst_time),
+                'orig_deadline' : int(p.deadline),
+                'current_capacity': int(p.burst_time),
+                # first absolute deadline at t=0 is deadline itself
+                'current_deadline': int(p.deadline)
+            }
 
-            # pick by earliest deadline
-            proc = min(ready_queue,
-                       key=lambda p: p.deadline if p.deadline is not None else float('inf'))
+        timeline = []  # will build list of {'task': pid, 'start':, 'end':}
 
-            # on context-switch, close old segment
-            if current_proc is None or proc.pid != current_proc.pid:
-                if current_proc:
-                    self.timeline.append((current_proc.pid, segment_start, current_time))
-                current_proc  = proc
-                segment_start = current_time
+        # 4) Tick-by-tick simulation
+        for t in range(hyper):
+            # a) choose all with current_capacity>0
+            ready = [pid for pid,info in RT.items() if info['current_capacity'] > 0]
+            if ready:
+                # pick the one with smallest current_deadline
+                pid = min(ready, key=lambda i: RT[i]['current_deadline'])
+                info = RT[pid]
+                # consume one unit
+                info['current_capacity'] -= 1
 
-            # execute one time unit
-            current_proc.remaining_time -= 1
-            current_time += 1
+                # append or extend last segment
+                if timeline and timeline[-1]['task'] == pid and timeline[-1]['end'] == t:
+                    timeline[-1]['end']   = t+1
+                    timeline[-1]['length'] += 1
+                else:
+                    timeline.append({
+                        'task': pid,
+                        'start': t,
+                        'end':   t+1,
+                        'length': 1
+                    })
+            # else: idle (we skip)
 
-            # if it finishes, close its segment
-            if current_proc.remaining_time == 0:
-                self.timeline.append((current_proc.pid, segment_start, current_time))
-                ready_queue.remove(current_proc)
-                del unfinished[current_proc.pid]
-                current_proc  = None
-                segment_start = current_time
+            # b) at end of tick, reload any whose (t+1)%period==0
+            for pid, info in RT.items():
+                if (t+1) % info['orig_period'] == 0:
+                    info['current_capacity'] = info['orig_capacity']
+                    info['current_deadline'] = (t+1) + info['orig_deadline']
 
-        # coalesce contiguous segments
-        self._merge_timeline_segments()
+        # 5) Flatten our dict‐style timeline into self.timeline = [(pid,start,end),...]
+        self.timeline = [(seg['task'], seg['start'], seg['end']) for seg in timeline]
 
-        # record final metrics
+        # 6) Compute metrics
         for p in self.processes:
             segs = [s for s in self.timeline if s[0] == p.pid]
             if segs:
-                p.completion_time = segs[-1][2]
-                p.turnaround_time = p.completion_time - p.arrival_time
+                last_finish = segs[-1][2]
+                p.completion_time = last_finish
+                p.turnaround_time = last_finish - p.arrival_time
                 p.waiting_time    = p.turnaround_time - p.burst_time
-
-    def _merge_timeline_segments(self):
-        merged = []
-        if not self.timeline:
-            return
-        curr = self.timeline[0]
-        for seg in self.timeline[1:]:
-            if seg[0] == curr[0] and seg[1] == curr[2]:
-                curr = (curr[0], curr[1], seg[2])
-            else:
-                merged.append(curr)
-                curr = seg
-        merged.append(curr)
-        self.timeline = merged
