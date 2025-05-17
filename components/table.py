@@ -160,5 +160,4 @@ class Table:
             pygame.display.flip()
             clock.tick(60)
 
-        # When closed, you can re‐set your main window if needed:
         pygame.display.set_mode((self.screen_width, self.screen_height))

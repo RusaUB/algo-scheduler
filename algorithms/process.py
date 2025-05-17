@@ -1,6 +1,3 @@
-# ---------------------------
-# algorithms/process.py
-# ---------------------------
 class Process:
     """
     Represents a process/task.

@@ -582,7 +582,7 @@ class SchedulerApp:
         rows = []
         for idx, (a,b,pr,dl) in enumerate(self.custom_inputs):
             rows.append(Process(
-                pid=a,                # or idx+1 if you prefer
+                pid=a,                
                 arrival_time=a,
                 burst_time=b,
                 period=pr if self.selected_algo in ("RM","DF") else None,
@@ -675,7 +675,7 @@ class SchedulerApp:
         )
         gc.draw(self.screen, self.font)
         
-        # Draw processes table and metrics...
+        # Draw processes table and metrics
         self.draw_results(processes=self.processes, chart_height=chart_height, chart_top=chart_top)
 
         # ─── Buttons ───────────────────────────────────────────────────────────────────
