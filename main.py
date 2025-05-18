@@ -115,12 +115,26 @@ class SchedulerApp:
         self.selected_algo_display = None
 
         # Parameters
-        titles      = [
-            ("FCFS",           "First-Come, First-Served",      (254,208,125)),
-            ("SJN",            "Shortest Job Next",             (255,165,126)),
-            ("Round Robin",    "Time-sliced rotation",          (231,241,154)),
-            ("Rate Monotonic", "Fixed priorities by period",    (190,158,253)),
-            ("Deadline First", "Earliest deadline wins",        (3,217,254)),
+        titles = [
+            ("FCFS",
+            "First-Come, First-Served\n\nnon-preemptive\nno timing constraints\nno priority",
+            (254,208,125)),
+
+            ("SJN",
+            "Shortest Job Next\n\nnon-preemptive\nno timing constraints\nno priority",
+            (255,165,126)),
+
+            ("Round Robin",
+            "Time-sliced rotation\n\npreemptive\nsoft real-time\nno priority",
+            (231,241,154)),
+
+            ("Rate Monotonic",
+            "Fixed priorities by period\n\npreemptive\nhard real-time\nstatic priority",
+            (190,158,253)),
+
+            ("Deadline First",
+            "Earliest deadline wins\n\npreemptive\nhard real-time\ndynamic priority",
+            (3,217,254)),
         ]
         self.card_w, self.card_h   = 240, 260
         padding_x, padding_y = 30, 20

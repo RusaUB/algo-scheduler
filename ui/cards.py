@@ -52,37 +52,26 @@ class Card:
         return self.base_rect.move(0, CARD_Y_OFFSET)
 
     def draw(self, screen: pygame.Surface):
-        # Use the offset rect for drawing and collision
         rect = self.rect
 
-        # Draw background with rounded corners
-        pygame.draw.rect(
-            screen,
-            self.bg_color,
-            rect,
-            border_radius=self.corner_radius
-        )
-        # Draw border with rounded corners
+        # background & border (unchanged)…
+        pygame.draw.rect(screen, self.bg_color, rect, border_radius=self.corner_radius)
         if self.border_width > 0:
-            pygame.draw.rect(
-                screen,
-                self.border_color,
-                rect,
-                self.border_width,
-                border_radius=self.corner_radius
-            )
+            pygame.draw.rect(screen, self.border_color, rect,
+                             self.border_width, border_radius=self.corner_radius)
 
-        # Render and position title (left-aligned)
+        # title (unchanged)…
         title_surf = self.title_font.render(self.title, True, self.title_color)
         title_rect = title_surf.get_rect(
-            topleft=(rect.left + self.padding_left, rect.top + self.padding_top)
+            topleft=(rect.left + self.padding_left,
+                     rect.top + self.padding_top)
         )
         screen.blit(title_surf, title_rect)
 
-        # Render and position description below title (left-aligned)
+        # multiline description
         if self.description:
-            desc_surf = self.desc_font.render(self.description, True, self.desc_color)
-            desc_rect = desc_surf.get_rect(
-                topleft=(rect.left + self.padding_left, title_rect.bottom + self.padding_between)
-            )
-            screen.blit(desc_surf, desc_rect)
+            y = title_rect.bottom + self.padding_between
+            for line in self.description.splitlines():
+                line_surf = self.desc_font.render(line, True, self.desc_color)
+                screen.blit(line_surf, (rect.left + self.padding_left, y))
+                y += line_surf.get_height() + self.padding_between
