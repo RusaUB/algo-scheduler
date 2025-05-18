@@ -42,3 +42,6 @@ class RoundRobinScheduler(Scheduler):
             p.completion_time = segments[-1][2]
             p.turnaround_time = p.completion_time - p.arrival_time
             p.waiting_time    = p.turnaround_time - p.burst_time
+
+
+
