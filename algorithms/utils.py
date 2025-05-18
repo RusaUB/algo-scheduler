@@ -1,62 +1,63 @@
 import random
 from algorithms.process import Process
+from math import gcd
+
+def lcm(a: int, b: int) -> int:
+    return a * b // gcd(a, b)
+
+def hyperperiod(periods):
+    h = 1
+    for p in periods:
+        h = lcm(h, p)
+    return h
 
 def generate_random_processes(
-    num_processes,
-    arrival_range=(0, 10),
+    num_processes: int,
+    arrival_increment: bool = True,
     burst_range=(1, 10),
     include_period=False,
-    include_deadline=False
+    include_deadline=False,
+    max_hyperperiod=50
 ):
     """
-    Generate a list of processes with unique arrival times
-    and optional period/deadline fields.
-
-    Parameters:
-      num_processes    – how many processes to create
-      arrival_range    – (min_arrival, max_arrival)
-      burst_range      – (min_burst, max_burst)
-      include_period   – if True, assign each process a random period > burst_time
-      include_deadline – if True, assign each process an absolute deadline
-
-    Returns:
-      List[Process] each with .arrival_time, .burst_time,
-      and optionally .period and .deadline.
+    arrival_increment=True → arrivals = 0,1,2,...
+    include_period    → generate periods burst+rand(1,10) *but* resample
+                         until lcm(periods) <= max_hyperperiod
+    include_deadline  → deadline = arrival + burst + rand(0,5)
     """
-    min_a, max_a = arrival_range
-    span = max_a - min_a + 1
-    if num_processes > span:
-        raise ValueError(
-            f"Cannot generate {num_processes} unique arrival times "
-            f"in range {arrival_range}"
-        )
+    # 1) arrivals = 0,1,2,...
+    arrivals = list(range(num_processes))
 
-    # pick unique arrival times
-    arrival_times = random.sample(range(min_a, max_a + 1), num_processes)
-    processes = []
+    # 2) bursts
+    bursts = [random.randint(*burst_range) for _ in range(num_processes)]
 
-    for i, arrival_time in enumerate(sorted(arrival_times), start=1):
-        burst_time = random.randint(*burst_range)
+    # 3) periods (if requested), else all None
+    periods = [None] * num_processes
+    if include_period:
+        # repeatedly sample until hyperperiod small enough
+        while True:
+            cand = [b + random.randint(1, 10) for b in bursts]
+            if hyperperiod(cand) <= max_hyperperiod:
+                periods = cand
+                break
 
-        period = None
-        if include_period:
-            # period must exceed burst_time
-            period = burst_time + random.randint(1, 10)
+    # 4) deadlines
+    deadlines = [
+        (arr + b + random.randint(0, 5)) if include_deadline else None
+        for arr, b in zip(arrivals, bursts)
+    ]
 
-        deadline = None
-        if include_deadline:
-            # absolute deadline no more than arrival + burst + 5
-            deadline = arrival_time + burst_time + random.randint(0, 5)
-
-        processes.append(Process(
-            pid=           i,
-            arrival_time=  arrival_time,
-            burst_time=    burst_time,
-            deadline=      deadline,
-            period=        period
+    procs = []
+    for pid, (a, b, pr, dl) in enumerate(zip(arrivals, bursts, periods, deadlines), start=1):
+        procs.append(Process(
+            pid=pid,
+            arrival_time=a,
+            burst_time=b,
+            period=pr,
+            deadline=dl
         ))
+    return procs
 
-    return processes
 
 def display_process_info(processes):
     """Print detailed information for each process."""
