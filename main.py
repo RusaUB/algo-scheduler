@@ -190,6 +190,10 @@ class SchedulerApp:
         self.zoom_button = {
             "rect": pygame.Rect(self.width-80-self.margin_x, 50, 80, 30)
         }
+
+        self.max_hyperperiod    = 100
+        self.hyper_auto_btn     = {"label":"Auto Fix","rect":pygame.Rect(self.width-50-120, self.height-50-40, 120,40)}
+        self.hyper_manual_btn   = {"label":"Manual","rect":pygame.Rect(self.width-50-120-10-120, self.height-50-40, 120,40)}
  
 
     def run(self):
@@ -208,6 +212,8 @@ class SchedulerApp:
                     self.handle_simulation_event(event)
                 elif self.state == "compare":
                     self.handle_comparison_event(event)  
+                elif self.state == "hyper_warning":
+                    self.handle_hyper_warning_event(event)
             if self.state == "menu":
                 self.draw_menu()
             elif self.state == "input":
@@ -216,6 +222,8 @@ class SchedulerApp:
                 self.draw_simulation()
             elif self.state == "compare":
                 self.draw_comparison()
+            elif self.state == "hyper_warning":
+                self.draw_hyper_warning()
             elif self.state == "replay":
                 self.draw_replay()
 
@@ -352,6 +360,23 @@ class SchedulerApp:
 
             # — Start Simulation —
             elif self.start_sim_button["rect"].collidepoint(pos):
+                if self.selected_algo in ("RM","DF"):
+                    # gather all periods
+                    periods = [pr for (_,_,pr,_) in self.custom_inputs]
+                    # simple lcm over list
+                    from math import gcd
+                    def lcm(a,b): return a*b//gcd(a,b)
+                    H = 1
+                    for p in periods:
+                        H = lcm(H, p)
+                    if H > self.max_hyperperiod:
+                        # store for the popup
+                        self.bad_hyper = H
+                        self.n_custom = len(self.custom_inputs)
+                        self.state = "hyper_warning"
+                        return
+
+            # otherwise fall through to original simulation start
                 self.processes = []
                 pid = 1
                 for a, b, pr, dl in self.custom_inputs:
@@ -813,6 +838,51 @@ class SchedulerApp:
                 label = self.font.load().render(f"P{pid}", True, (255,255,255))
                 self.screen.blit(label, rect.move(5,5))
  
+    # ─── hyperperiod warning ─────────────────────────────────────────────────
+    def handle_hyper_warning_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            pos = event.pos
+            # Auto fix → regenerate random with same count
+            if self.hyper_auto_btn["rect"].collidepoint(pos):
+                self.processes = generate_random_processes(
+                    self.n_custom,
+                    include_period=True,
+                    include_deadline=True
+                )
+                self.initialize_scheduler()
+                self.scheduler.schedule()
+                self.state = "simulation"
+                return
+            # Manual → go back to custom input
+            if self.hyper_manual_btn["rect"].collidepoint(pos):
+                self.state = "input"
+                return
+
+    def draw_hyper_warning(self):
+        # dim background
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0,0,0,180))
+        self.screen.blit(overlay, (0,0))
+
+        # dialog
+        w, h = 500, 200
+        x, y = (self.width-w)//2, (self.height-h)//2
+        pygame.draw.rect(self.screen, (245,245,245), (x,y,w,h), border_radius=8)
+        pygame.draw.rect(self.screen, (0,0,0), (x,y,w,h), 2, border_radius=8)
+
+        # message
+        msg1 = f"Hyperperiod = {self.bad_hyper} exceeds {self.max_hyperperiod}"
+        msg2 = "Gantt chart for RM/EDF will not render correctly."
+        txt1 = self.font.load().render(msg1, True, (0,0,0))
+        txt2 = self.font.load().render(msg2, True, (0,0,0))
+        self.screen.blit(txt1, (x+20, y+40))
+        self.screen.blit(txt2, (x+20, y+80))
+
+        for btn in (self.hyper_manual_btn, self.hyper_auto_btn):
+            pygame.draw.rect(self.screen, (0,0,0), btn["rect"])
+            label = self.font.load().render(btn["label"], True, (255,255,255))
+            self.screen.blit(label, label.get_rect(center=btn["rect"].center))
+
     def initialize_scheduler(self):
         # Set up the scheduler instance
         if self.selected_algo == "FCFS":
